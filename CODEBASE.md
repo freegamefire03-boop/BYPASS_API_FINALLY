@@ -1,7 +1,7 @@
 # File Tree
 
 ```
-.
+├── .gitignore
 ├── background.js
 ├── manifest.json
 ├── popup.html
@@ -9,6 +9,20 @@
 ```
 
 # Source Files
+
+## `.gitignore`
+
+```
+.env
+.env.*
+*.key
+*.pem
+*token*
+*secret*
+node_modules/
+.DS_Store
+*.log
+```
 
 ## `background.js`
 
@@ -34,10 +48,37 @@
 // next one. No manual navigation needed; it's automated and near-instant
 // per tab (a few hundred ms).
 //
+// INPUT DETECTION: Primary method polls document.activeElement for up to 8s.
+// If the site doesn't auto-focus its input, a fallback kicks in: the extension
+// simulates Tab keypresses (via debugger, trusted events, page-only — the
+// omnibox is never reached) to walk through all focusable elements, collects
+// text-input candidates, scores them (textarea > contenteditable > input,
+// large > small, bottom-of-page > top-of-page), and focuses the best match.
+// If both methods fail, the tab is aborted with a clear error (no blind firing).
+//
 // TEXT INSERTION: The prompt is injected directly into each tab's focused
 // input via CDP's Input.insertText — no system clipboard is involved.
 // This means the user can freely copy/paste on their PC while the
 // extension runs without corrupting the prompt being sent.
+//
+// VERIFICATION: Two-stage post-send check. Stage 1 polls the tab URL for
+// 1.5s — if it changes, the prompt was delivered. If Stage 1 fails, Stage 2
+// polls the exact input element we wrote into (found via a temporary
+// data-autoprompt-input attribute) for 1.5s — if its content is cleared,
+// the site consumed the prompt. If both stages fail, the tab is flagged
+// as a definitive failure (not "uncertain").
+//
+// TARGETED RE-CHECK: If initial verification fails on a tab that received
+// the prompt, the extension does not immediately give up. After all tabs
+// are processed, it re-activates only the failed tabs, waits for the page
+// to settle, and re-runs the same two-stage verification. This fixes false
+// failures caused by sites pausing or delaying DOM updates while backgrounded.
+//
+// RETRY ENTER: If the targeted re-check still fails and the marked input
+// box still contains the prompt text, the extension re-focuses that exact
+// input box, re-attaches the debugger, and sends one more trusted Enter
+// keystroke. This is the final rescue step. If it fails, the tab remains
+// flagged as failed.
 //
 // An "experimentalBackground" toggle keeps the old direct/no-cycling
 // behavior available (all tabs stay in the background, no cycling) for
@@ -76,6 +117,8 @@ function makeLogger(enabled) {
     const entry = { t: new Date().toISOString(), scope: String(scope), message };
     if (data !== undefined) entry.data = data;
     entries.push(entry);
+    // Always echo to the service worker console too — that's free, and
+    // helps even when the "save log file" toggle is off.
     console.log(`[AI Chat Auto-Prompt] [${scope}] ${message}`, data !== undefined ? data : '');
   }
   async function flush(meta) {
@@ -150,6 +193,239 @@ async function waitForFocusedInput(tabId, maxWaitMs = 15000, stepMs = 350) {
   return false;
 }
 
+// ---- Input element marking (for post-send verification) ---------------------
+
+async function markInputElement(tabId) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        const el = document.activeElement;
+        if (el) el.setAttribute('data-autoprompt-input', 'true');
+      }
+    });
+  } catch (e) {}
+}
+
+async function getMarkedInputContent(tabId) {
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        const el = document.querySelector('[data-autoprompt-input="true"]');
+        if (!el) return null;
+        if (el.value !== undefined) return el.value;
+        return el.innerText || el.textContent || '';
+      }
+    });
+    return results && results[0] ? results[0].result : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function cleanupInputElementMark(tabId) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        const el = document.querySelector('[data-autoprompt-input="true"]');
+        if (el) el.removeAttribute('data-autoprompt-input');
+      }
+    });
+  } catch (e) {}
+}
+
+async function focusMarkedInput(tabId) {
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        const el = document.querySelector('[data-autoprompt-input="true"]');
+        if (!el) return false;
+
+        el.focus();
+        return true;
+      }
+    });
+    return !!(results && results[0] && results[0].result);
+  } catch (e) {
+    return false;
+  }
+}
+
+// ---- Tab-navigation fallback helpers ----------------------------------------
+
+function fingerprintsMatch(a, b) {
+  return (
+    a.tag === b.tag &&
+    a.id === b.id &&
+    a.x === b.x &&
+    a.y === b.y &&
+    a.w === b.w &&
+    a.h === b.h
+  );
+}
+
+function scoreCandidate(data) {
+  let score = 0;
+  if (data.tag === 'textarea') score += 100;
+  if (data.editable) score += 80;
+  if (data.tag === 'input') score += 40;
+  if (data.w > 400) score += 30;
+  if (data.h > 60) score += 20;
+  if (data.h > 200) score += 10;
+  const ph = (data.placeholder || '').toLowerCase();
+  if (/message|prompt|ask|chat|type/.test(ph)) score += 15;
+  if (data.y > data.viewportH * 0.5) score += 10;
+  if (/search/.test(ph) && data.tag === 'input') score -= 20;
+  return score;
+}
+
+async function findInputViaTabNavigation(tabId, logger) {
+  const MAX_TABS = 50;
+  let firstFingerprint = null;
+  const candidates = [];
+
+  for (let i = 0; i < MAX_TABS; i++) {
+    await dispatchKey(tabId, {
+      type: 'rawKeyDown',
+      windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9,
+      code: 'Tab', key: 'Tab'
+    });
+    await dispatchKey(tabId, {
+      type: 'keyUp',
+      windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9,
+      code: 'Tab', key: 'Tab'
+    });
+    await delay(100);
+
+    let info;
+    try {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => {
+          const el = document.activeElement;
+          if (!el || el === document.body || el === document.documentElement) {
+            return { type: 'none' };
+          }
+
+          const tag = el.tagName ? el.tagName.toLowerCase() : '';
+          const editable = !!el.isContentEditable;
+          const inputType = (el.type || '').toLowerCase();
+
+          const rect = el.getBoundingClientRect();
+          const fingerprint = {
+            tag,
+            id: el.id || '',
+            x: Math.round(rect.x),
+            y: Math.round(rect.y),
+            w: Math.round(rect.width),
+            h: Math.round(rect.height)
+          };
+
+          const isCandidate =
+            tag === 'textarea' ||
+            editable ||
+            (tag === 'input' && ['text', 'search', ''].includes(inputType));
+
+          if (!isCandidate) {
+            return { type: 'not-candidate', fingerprint };
+          }
+
+          const placeholder =
+            el.placeholder ||
+            el.getAttribute('data-placeholder') ||
+            el.getAttribute('aria-label') ||
+            '';
+          const scoreData = {
+            tag, editable, inputType, placeholder,
+            w: Math.round(rect.width),
+            h: Math.round(rect.height),
+            y: Math.round(rect.y),
+            viewportH: window.innerHeight
+          };
+
+          const candidateIndex = document.querySelectorAll('[data-autoprompt-candidate]').length;
+          el.setAttribute('data-autoprompt-candidate', String(candidateIndex));
+
+          return { type: 'candidate', fingerprint, scoreData, candidateIndex };
+        }
+      });
+      info = results && results[0] && results[0].result;
+    } catch (e) {
+      logger.log(tabId, `Tab fallback: executeScript error on Tab ${i + 1}: ${e.message}`);
+      break;
+    }
+
+    if (!info || info.type === 'none') continue;
+
+    if (firstFingerprint === null) {
+      firstFingerprint = info.fingerprint;
+    } else if (fingerprintsMatch(info.fingerprint, firstFingerprint)) {
+      logger.log(tabId, `Tab fallback: full cycle complete after ${i + 1} Tab presses`);
+      break;
+    }
+
+    if (info.type === 'candidate') {
+      candidates.push(info);
+      logger.log(tabId, `Tab fallback: found candidate #${info.candidateIndex} (<${info.scoreData.tag}>, ${info.scoreData.w}x${info.scoreData.h})`);
+    }
+  }
+
+  if (candidates.length === 0) {
+    logger.log(tabId, 'Tab fallback: no text-input candidates found after full cycle');
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => {
+          document.querySelectorAll('[data-autoprompt-candidate]').forEach((el) =>
+            el.removeAttribute('data-autoprompt-candidate')
+          );
+        }
+      });
+    } catch (_e) {}
+    return false;
+  }
+
+  let chosen;
+  if (candidates.length === 1) {
+    chosen = candidates[0];
+    logger.log(tabId, 'Tab fallback: only 1 candidate — using it directly (no scoring needed)');
+  } else {
+    chosen = candidates.reduce((best, c) =>
+      scoreCandidate(c.scoreData) > scoreCandidate(best.scoreData) ? c : best
+    );
+    logger.log(tabId, `Tab fallback: ${candidates.length} candidates — picked #${chosen.candidateIndex} (score ${scoreCandidate(chosen.scoreData)})`);
+  }
+
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (idx) => {
+        const el = document.querySelector(`[data-autoprompt-candidate="${idx}"]`);
+        if (el) el.focus();
+        document.querySelectorAll('[data-autoprompt-candidate]').forEach((e) =>
+          e.removeAttribute('data-autoprompt-candidate')
+        );
+        return !!el;
+      },
+      args: [chosen.candidateIndex]
+    });
+  } catch (e) {
+    logger.log(tabId, `Tab fallback: failed to focus chosen element: ${e.message}`);
+    return false;
+  }
+
+  await delay(150);
+
+  const confirmed = await isInputFocused(tabId);
+  logger.log(tabId, confirmed
+    ? 'Tab fallback: chosen element is now focused — ready to send'
+    : 'Tab fallback: focus confirmation failed');
+  return confirmed;
+}
+
 // ---- Trusted keystroke simulation via the debugger -------------------------
 
 async function dispatchKey(tabId, params) {
@@ -175,23 +451,164 @@ async function sendTextThenEnter(tabId, prompt) {
   });
 }
 
-// ---- Post-send verification (URL change check) -----------------------------
+async function sendEnterOnly(tabId) {
+  await dispatchKey(tabId, {
+    type: 'rawKeyDown',
+    windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, macCharCode: 13,
+    code: 'Enter', key: 'Enter', text: '\r', unmodifiedText: '\r'
+  });
+  await dispatchKey(tabId, { type: 'char', text: '\r' });
+  await delay(30);
+  await dispatchKey(tabId, {
+    type: 'keyUp',
+    windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13,
+    code: 'Enter', key: 'Enter'
+  });
+}
 
-async function verifySend(tabId, originalUrl, logger, pollMs = 500, timeoutMs = 1500) {
-  const deadline = Date.now() + timeoutMs;
-  try {
-    while (Date.now() < deadline) {
+// ---- Post-send verification (two-stage: URL change + input clearing) --------
+
+async function verifySend(tabId, originalUrl, logger) {
+  const urlDeadline = Date.now() + 1500;
+  while (Date.now() < urlDeadline) {
+    try {
       const { url: newUrl } = await chrome.tabs.get(tabId);
-      logger.log(tabId, `Verification: check "${originalUrl}" vs "${newUrl}"`);
       if (newUrl !== originalUrl) {
+        logger.log(tabId, 'Verification Stage 1: URL changed — Success');
         return { verified: true, reason: 'URL changed — prompt was sent' };
       }
-      await delay(pollMs);
+    } catch (e) {
+      logger.log(tabId, `Verification Stage 1 error: ${e.message}`);
     }
-    return { verified: false, reason: 'URL unchanged after polling — send may have failed' };
+    await delay(500);
+  }
+
+  logger.log(tabId, 'Verification Stage 1 failed — starting Stage 2 (input clearing check)');
+  const inputDeadline = Date.now() + 1500;
+  while (Date.now() < inputDeadline) {
+    const content = await getMarkedInputContent(tabId);
+
+    if (content === null) {
+      logger.log(tabId, 'Stage 2: marked input element no longer exists — cannot verify');
+      break;
+    }
+
+    if (content.trim() === '') {
+      logger.log(tabId, 'Verification Stage 2: input box cleared — Success');
+      return { verified: true, reason: 'Input box cleared — prompt was sent' };
+    }
+
+    await delay(500);
+  }
+
+  logger.log(tabId, 'Verification failed: URL unchanged and input still contains text');
+  return { verified: false, reason: 'URL unchanged and input still contains text — send failed' };
+}
+
+// ---- Targeted re-check + Stage 3 retry Enter -------------------------------
+
+async function recheckFailedTab(result, logger) {
+  try {
+    const tab = await chrome.tabs.get(result.tabId);
+
+    // Re-activate the tab so the site's JavaScript wakes up and updates the DOM/URL
+    await chrome.tabs.update(result.tabId, { active: true });
+    if (tab && tab.windowId !== undefined) {
+      await chrome.windows.update(tab.windowId, { focused: true });
+    }
+
+    logger.log(result.tabId, `Re-check: activated tab (${result.url})`);
+
+    // Give the site time to settle after being brought back to the front
+    await delay(1500);
+
+    // ---- Stage 2: targeted re-check (unchanged) ----
+    const verification = await verifySend(result.tabId, result.url, logger);
+
+    if (verification.verified) {
+      result.status = 'success';
+      result.reason = `Re-check success: ${verification.reason}`;
+      logger.log(result.tabId, 'Re-check passed — status updated to success');
+      return;
+    }
+
+    logger.log(result.tabId, 'Re-check failed — evaluating Stage 3 (Retry Enter)');
+
+    // ---- Stage 3: Retry Enter only if the input box still contains text ----
+    const remainingText = await getMarkedInputContent(result.tabId);
+
+    if (remainingText === null || remainingText.trim() === '') {
+      result.status = 'error';
+      result.reason = `Re-check failed: ${verification.reason}`;
+      logger.log(result.tabId, 'Stage 3 skipped — input box is empty or no longer exists');
+      return;
+    }
+
+    logger.log(result.tabId, 'Stage 3: input box still contains text — focusing input and retrying Enter');
+
+    const focused = await focusMarkedInput(result.tabId);
+    if (!focused) {
+      result.status = 'error';
+      result.reason = `Re-check failed: ${verification.reason}; Retry Enter skipped (could not focus marked input)`;
+      logger.log(result.tabId, 'Stage 3 failed — could not focus marked input');
+      return;
+    }
+
+    await delay(200);
+
+    // Re-attach the debugger because trusted Enter key events require it
+    let debuggerAttached = false;
+    try {
+      await chrome.debugger.attach({ tabId: result.tabId }, '1.3');
+      debuggerAttached = true;
+      logger.log(result.tabId, 'Stage 3: debugger re-attached for Enter retry');
+    } catch (e) {
+      logger.log(result.tabId, `Stage 3: debugger attach failed: ${e.message}`);
+    }
+
+    if (!debuggerAttached) {
+      result.status = 'error';
+      result.reason = `Re-check failed: ${verification.reason}; Retry Enter skipped (debugger attach failed)`;
+      return;
+    }
+
+    try {
+      await sendEnterOnly(result.tabId);
+      logger.log(result.tabId, 'Stage 3: Enter retry dispatched');
+
+      // Small settle delay before final verification
+      await delay(300);
+
+      const retryVerification = await verifySend(result.tabId, result.url, logger);
+
+      if (retryVerification.verified) {
+        result.status = 'success';
+        result.reason = `Retry Enter success: ${retryVerification.reason}`;
+        logger.log(result.tabId, 'Stage 3 passed — status updated to success');
+      } else {
+        result.status = 'error';
+        result.reason = `Retry Enter failed: ${retryVerification.reason}`;
+        logger.log(result.tabId, 'Stage 3 failed — status remains error');
+      }
+    } finally {
+      try {
+        await chrome.debugger.detach({ tabId: result.tabId });
+        logger.log(result.tabId, 'Stage 3: debugger detached');
+      } catch (_e) {}
+    }
   } catch (e) {
-    logger.log(tabId, `Verification error: ${e.message}`);
-    return { verified: false, reason: `Verification error: ${e.message}` };
+    logger.log(result.tabId || result.url, `Re-check error: ${e.message}`);
+    result.status = 'error';
+    result.reason = `Re-check error: ${e.message}`;
+  } finally {
+    delete result.needsRecheck;
+
+    // Clean up the temporary input mark now that re-check and retry are finished
+    if (result.tabId) {
+      try {
+        await cleanupInputElementMark(result.tabId);
+      } catch (_e) {}
+    }
   }
 }
 
@@ -248,27 +665,51 @@ async function sendToActivatedTab(tabId, url, prompt, logger) {
 
     await delay(200);
 
-    const focused = await waitForFocusedInput(tabId, 8000, 300);
-    logger.log(tabId, focused
-      ? 'Focused input detected'
-      : 'No focused input detected after waiting; attempting keys anyway');
+    let focused = await waitForFocusedInput(tabId, 8000, 300);
+
+    if (!focused) {
+      logger.log(tabId, 'Primary focus detection timed out — starting Tab navigation fallback');
+      focused = await findInputViaTabNavigation(tabId, logger);
+    }
+
+    if (!focused) {
+      logger.log(tabId, 'Both primary and Tab fallback failed — no input box found, aborting tab');
+      result.status = 'error';
+      result.reason = 'No input box found (primary detection + Tab fallback both failed)';
+      return result;
+    }
+
+    logger.log(tabId, 'Input box focused — proceeding with text insertion');
     await delay(200);
+
+    await markInputElement(tabId);
 
     await sendTextThenEnter(tabId, prompt);
     logger.log(tabId, 'Text inserted + Enter dispatched');
 
     const verification = await verifySend(tabId, url, logger);
+
     if (verification.verified) {
+      // Success — clean up the temporary input mark immediately
+      await cleanupInputElementMark(tabId);
       result.status = 'success';
       result.reason = verification.reason;
     } else {
-      result.status = 'uncertain';
+      // Failed — keep the input mark so the targeted re-check can inspect the same input box later
+      result.status = 'error';
       result.reason = verification.reason;
+      result.needsRecheck = true;
+      logger.log(tabId, 'Initial verification failed — tab marked for targeted re-check');
     }
   } catch (e) {
     logger.log(tabId, `Error during send: ${e.message}`);
     result.status = 'error';
     result.reason = e.message;
+
+    // Clean up the temporary input mark if it was added before the error
+    try {
+      await cleanupInputElementMark(tabId);
+    } catch (_e) {}
   } finally {
     try {
       await chrome.debugger.detach({ tabId });
@@ -279,19 +720,99 @@ async function sendToActivatedTab(tabId, url, prompt, logger) {
 }
 
 async function runAutomationAutoCycle(urls, prompt, skipWait, logger) {
-  logger.log('main', `Starting run: ${urls.length} URL(s), skipWait=${skipWait}, mode=auto-cycle`);
+  logger.log('main', `Starting run: ${urls.length} URL(s), skipWait=${skipWait}, mode=auto-cycle (Ready Queue)`);
 
-  const tabStates = await Promise.all(urls.map((url) => openAndAttach(url, skipWait, logger)));
+  // 1. Launch all tabs in parallel. Each runs its own loading/wait logic.
+  const tabPromises = urls.map((url) => openAndAttach(url, skipWait, logger));
 
-  const results = [];
-  for (const state of tabStates) {
+  const readyQueue = [];
+  const failedTabs = [];
+  const startTime = Date.now();
+
+  // 2. Build the Ready Queue dynamically
+  while (readyQueue.length < urls.length) {
+    for (let i = 0; i < tabPromises.length; i++) {
+      if (!tabPromises[i]) continue;
+
+      let isResolved = false;
+      let result = null;
+
+      await Promise.race([
+        tabPromises[i].then(res => { result = res; isResolved = true; }),
+        Promise.resolve()
+      ]);
+
+      if (isResolved) {
+        if (result.ok && result.tabId) {
+          readyQueue.push(result);
+          logger.log(result.tabId, `Added to Ready Queue (Position ${readyQueue.length})`);
+        } else {
+          failedTabs.push(result);
+        }
+        tabPromises[i] = null;
+      }
+    }
+
+    if (readyQueue.length === 0 && Date.now() - startTime > 1000) {
+      logger.log('main', '1s elapsed with no ready tabs. Forcing first tab into queue.');
+      const firstIdx = tabPromises.findIndex(p => p !== null);
+      if (firstIdx === -1) break;
+      const firstResult = await tabPromises[firstIdx];
+      if (firstResult.ok && firstResult.tabId) {
+        readyQueue.push(firstResult);
+      } else {
+        failedTabs.push(firstResult);
+      }
+      tabPromises[firstIdx] = null;
+      break;
+    }
+
+    if (readyQueue.length > 0) {
+      break;
+    }
+
+    await delay(100);
+  }
+
+  // 3. Process the first batch of ready tabs
+  const results = [...failedTabs];
+
+  for (const state of readyQueue) {
+    const result = await sendToActivatedTab(state.tabId, state.url, prompt, logger);
+    results.push(result);
+  }
+
+  // 4. Process remaining tabs as they finish loading
+  for (let i = 0; i < tabPromises.length; i++) {
+    if (tabPromises[i] === null) continue;
+
+    const state = await tabPromises[i];
     if (!state.ok || !state.tabId) {
       results.push({ url: state.url, tabId: state.tabId || null, status: 'error', reason: 'Failed to open or attach debugger' });
       continue;
     }
+
+    logger.log(state.tabId, 'Tab finished loading, added to processing queue.');
     const result = await sendToActivatedTab(state.tabId, state.url, prompt, logger);
     results.push(result);
   }
+
+  // ---- Targeted re-check phase ----
+  // Only re-check tabs where the prompt was sent but initial verification failed.
+  const tabsToRecheck = results.filter((r) => r.needsRecheck && r.tabId);
+
+  if (tabsToRecheck.length > 0) {
+    logger.log('main', `Initial pass complete. ${tabsToRecheck.length} tab(s) flagged as failed — starting targeted re-check.`);
+
+    for (const failedResult of tabsToRecheck) {
+      await recheckFailedTab(failedResult, logger);
+    }
+  } else {
+    logger.log('main', 'Initial pass complete. No tabs need targeted re-check.');
+  }
+
+  // Remove internal flag before saving/displaying results
+  results.forEach((r) => delete r.needsRecheck);
 
   await chrome.storage.local.set({ lastRunResults: results, lastRunFinishedAt: Date.now() });
   logger.log('main', `Run complete. Results stored: ${results.length} tab(s)`);
@@ -324,16 +845,33 @@ async function runSingleTabFlowDirect(url, skipWait, prompt, logger) {
       await waitForTabComplete(tabId);
       await delay(1200);
     }
-    const focused = await waitForFocusedInput(tabId);
-    logger.log(tabId, focused
-      ? 'Focused input detected'
-      : 'No focused input detected; attempting anyway (background tabs usually fail here)');
+    let focused = await waitForFocusedInput(tabId);
+
+    if (!focused) {
+      logger.log(tabId, 'Primary focus detection timed out — starting Tab navigation fallback');
+      focused = await findInputViaTabNavigation(tabId, logger);
+    }
+
+    if (!focused) {
+      logger.log(tabId, 'Both primary and Tab fallback failed — no input box found, aborting tab');
+      result.status = 'error';
+      result.reason = 'No input box found (primary detection + Tab fallback both failed)';
+      return result;
+    }
+
+    logger.log(tabId, 'Input box focused — proceeding with text insertion');
     await delay(250);
+
+    await markInputElement(tabId);
+
     await sendTextThenEnter(tabId, prompt);
     logger.log(tabId, 'Text inserted + Enter dispatched');
 
     const verification = await verifySend(tabId, url, logger);
-    result.status = verification.verified ? 'success' : 'uncertain';
+
+    await cleanupInputElementMark(tabId);
+
+    result.status = verification.verified ? 'success' : 'error';
     result.reason = verification.reason;
   } catch (e) {
     logger.log(tabId, `Error: ${e.message}`);
@@ -602,11 +1140,14 @@ const statusEl = document.getElementById('status');
 const resultsSection = document.getElementById('results-section');
 const resultsList = document.getElementById('results-list');
 
-chrome.storage.local.get(['lastUrls', 'skipWait', 'experimentalBackground', 'debugLog'], (res) => {
+chrome.storage.local.get(['lastUrls', 'skipWait', 'experimentalBackground', 'debugLog', 'lastRunResults'], (res) => {
   if (res.lastUrls) urlsInput.value = res.lastUrls;
   if (res.skipWait) skipWaitInput.checked = true;
   if (res.experimentalBackground) experimentalBgInput.checked = true;
   if (res.debugLog) debugLogInput.checked = true;
+  if (res.lastRunResults && res.lastRunResults.length > 0) {
+    displayResults(res.lastRunResults);
+  }
 });
 
 skipWaitInput.addEventListener('change', () => {
@@ -702,7 +1243,7 @@ submitBtn.addEventListener('click', async () => {
 });
 
 function pollForResults() {
-  var maxWait = 60000;
+  var maxWait = 180000;
   var interval = 1000;
   var elapsed = 0;
 

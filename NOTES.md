@@ -69,3 +69,21 @@
 
 **Priority:** High — fixes false failure reports that undermine trust in the tool.
 
+## 4 — Stage 1 early-fail gap: no recovery when prompt was never written
+
+**Observed gap:** If the initial send stage fails *before or during* `sendTextThenEnter`, the tab is permanently skipped with no recovery path. Specifically:
+
+- **Focus detection fails** (`sendToActivatedTab` line 649): returns early with `{ status: 'error' }`. No `markInputElement`, no `needsRecheck`. Tab never enters re-check queue.
+- **`sendTextThenEnter` throws** after `markInputElement` (catch block line 675): cleans up the input mark, sets `{ status: 'error' }`, does **not** set `needsRecheck`. Tab is written off even though `insertText` may have partially succeeded (text in input, Enter never sent).
+- **`sendTextThenEnter` succeeds, verification fails, input is empty by Stage 2:** Stage 2 `verifySend` re-runs but the input is already cleared (or the marked element no longer exists) → returns false. Stage 3 checks `getMarkedInputContent` → returns `null` or `''` → skips itself. Tab remains as error with no further rescue.
+
+**Consequence:** Any failure that prevents the prompt from reaching the input box (focus miss, debugger disconnect, tab crash, SPA navigation that blows away the DOM after marking) is terminal — the 3-stage rescue ladder never engages.
+
+**Possible fix directions:**
+
+1. **Bypass Stage 3 text check** — If the marked input exists but is empty, the prompt was either consumed (success!) or was never written. Try re-sending the prompt text before retrying Enter.
+2. **Last-resort re-send** — For tabs where `needsRecheck` was never set but the tabId is valid and the tab is still alive, attempt a full re-send (focus detect → insertText → Enter → verify) as a final pass.
+3. **Set `needsRecheck` in the catch block** — If `sendTextThenEnter` throws, keep the mark (don't clean up) and set `needsRecheck = true` so the re-check phase at least tries.
+
+**Status:** Gap identified but not yet addressed. Needs scoping before implementation.
+
