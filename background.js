@@ -531,21 +531,81 @@ async function sendToActivatedTab(tabId, url, prompt, logger) {
 }
 
 async function runAutomationAutoCycle(urls, prompt, skipWait, logger) {
-  logger.log('main', `Starting run: ${urls.length} URL(s), skipWait=${skipWait}, mode=auto-cycle`);
+  logger.log('main', `Starting run: ${urls.length} URL(s), skipWait=${skipWait}, mode=auto-cycle (Ready Queue)`);
 
-  const tabStates = await Promise.all(urls.map((url) => openAndAttach(url, skipWait, logger)));
+  // 1. Launch all tabs in parallel. Each runs its own loading/wait logic.
+  const tabPromises = urls.map((url) => openAndAttach(url, skipWait, logger));
 
-  const results = [];
-  for (const state of tabStates) {
-    if (!state.ok || !state.tabId) {
-      results.push({ url: state.url, tabId: state.tabId || null, status: 'error', reason: 'Failed to open or attach debugger' });
-      continue;
+  const readyQueue = [];
+  const failedTabs = [];
+  const startTime = Date.now();
+
+  // 2. Build the Ready Queue dynamically
+  while (readyQueue.length < urls.length) {
+    for (let i = 0; i < tabPromises.length; i++) {
+      if (!tabPromises[i]) continue;
+
+      let isResolved = false;
+      let result = null;
+
+      await Promise.race([
+        tabPromises[i].then(res => { result = res; isResolved = true; }),
+        Promise.resolve()
+      ]);
+
+      if (isResolved) {
+        if (result.ok && result.tabId) {
+          readyQueue.push(result);
+          logger.log(result.tabId, `Added to Ready Queue (Position ${readyQueue.length})`);
+        } else {
+          failedTabs.push(result);
+        }
+        tabPromises[i] = null;
+      }
     }
+
+    if (readyQueue.length === 0 && Date.now() - startTime > 1000) {
+      logger.log('main', '1s elapsed with no ready tabs. Forcing first tab into queue.');
+      const firstResult = await tabPromises[0];
+      if (firstResult.ok && firstResult.tabId) {
+        readyQueue.push(firstResult);
+      } else {
+        failedTabs.push(firstResult);
+      }
+      tabPromises[0] = null;
+      break;
+    }
+
+    if (readyQueue.length > 0) {
+      break;
+    }
+
+    await delay(100);
+  }
+
+  // 3. Process the first batch of ready tabs
+  const results = [...failedTabs];
+
+  for (const state of readyQueue) {
     const result = await sendToActivatedTab(state.tabId, state.url, prompt, logger);
     results.push(result);
   }
 
-  // Store results so the popup can read them
+  // 4. Process remaining tabs as they finish loading
+  for (let i = 0; i < tabPromises.length; i++) {
+    if (tabPromises[i] === null) continue;
+
+    const state = await tabPromises[i];
+    if (!state.ok || !state.tabId) {
+      results.push({ url: state.url, tabId: state.tabId || null, status: 'error', reason: 'Failed to open or attach debugger' });
+      continue;
+    }
+
+    logger.log(state.tabId, 'Tab finished loading, added to processing queue.');
+    const result = await sendToActivatedTab(state.tabId, state.url, prompt, logger);
+    results.push(result);
+  }
+
   await chrome.storage.local.set({ lastRunResults: results, lastRunFinishedAt: Date.now() });
   logger.log('main', `Run complete. Results stored: ${results.length} tab(s)`);
   return results;
