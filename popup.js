@@ -1,0 +1,138 @@
+const urlsInput = document.getElementById('urls');
+const promptInput = document.getElementById('prompt');
+const skipWaitInput = document.getElementById('skipWait');
+const experimentalBgInput = document.getElementById('experimentalBackground');
+const debugLogInput = document.getElementById('debugLog');
+const submitBtn = document.getElementById('submit');
+const statusEl = document.getElementById('status');
+const resultsSection = document.getElementById('results-section');
+const resultsList = document.getElementById('results-list');
+
+chrome.storage.local.get(['lastUrls', 'skipWait', 'experimentalBackground', 'debugLog', 'lastRunResults'], (res) => {
+  if (res.lastUrls) urlsInput.value = res.lastUrls;
+  if (res.skipWait) skipWaitInput.checked = true;
+  if (res.experimentalBackground) experimentalBgInput.checked = true;
+  if (res.debugLog) debugLogInput.checked = true;
+  if (res.lastRunResults && res.lastRunResults.length > 0) {
+    displayResults(res.lastRunResults);
+  }
+});
+
+skipWaitInput.addEventListener('change', () => {
+  chrome.storage.local.set({ skipWait: skipWaitInput.checked });
+});
+experimentalBgInput.addEventListener('change', () => {
+  chrome.storage.local.set({ experimentalBackground: experimentalBgInput.checked });
+});
+debugLogInput.addEventListener('change', () => {
+  chrome.storage.local.set({ debugLog: debugLogInput.checked });
+});
+
+function parseUrls(raw) {
+  return raw
+    .split(/[\n,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((u) => (/^https?:\/\//i.test(u) ? u : 'https://' + u))
+    .filter((u, i, arr) => arr.indexOf(u) === i);
+}
+
+function displayResults(results) {
+  resultsList.innerHTML = '';
+  for (const r of results) {
+    const item = document.createElement('div');
+    item.className = 'result-item';
+
+    const dot = document.createElement('div');
+    dot.className = 'result-dot ' + r.status;
+    item.appendChild(dot);
+
+    const textWrap = document.createElement('div');
+    const urlEl = document.createElement('div');
+    urlEl.className = 'result-url';
+    try {
+      urlEl.textContent = new URL(r.url).hostname;
+    } catch (_e) {
+      urlEl.textContent = r.url;
+    }
+    textWrap.appendChild(urlEl);
+
+    const reasonEl = document.createElement('div');
+    reasonEl.className = 'result-reason';
+    reasonEl.textContent = r.status === 'success' ? r.reason : 'FAILED: ' + r.reason;
+    textWrap.appendChild(reasonEl);
+
+    item.appendChild(textWrap);
+    resultsList.appendChild(item);
+  }
+  resultsSection.style.display = 'block';
+}
+
+submitBtn.addEventListener('click', async () => {
+  const urls = parseUrls(urlsInput.value);
+  const prompt = promptInput.value;
+  const skipWait = skipWaitInput.checked;
+
+  if (urls.length === 0) {
+    statusEl.textContent = 'Enter at least one URL first.';
+    return;
+  }
+  if (!prompt) {
+    statusEl.textContent = 'Enter a prompt first.';
+    return;
+  }
+
+  resultsSection.style.display = 'none';
+  resultsList.innerHTML = '';
+  await chrome.storage.local.remove('lastRunResults');
+
+  chrome.storage.local.set({ lastUrls: urlsInput.value, skipWait, experimentalBackground: experimentalBgInput.checked, debugLog: debugLogInput.checked });
+
+  submitBtn.disabled = true;
+  statusEl.textContent = 'Working... opening ' + urls.length + ' tab' + (urls.length > 1 ? 's' : '') + ' in parallel.';
+
+  try {
+    await chrome.runtime.sendMessage({
+      type: 'RUN_AUTOMATION',
+      urls,
+      prompt,
+      skipWait,
+      experimentalBackground: experimentalBgInput.checked,
+      debugLog: debugLogInput.checked
+    });
+    statusEl.textContent = 'Tabs opened. Sending prompt, then verifying...';
+  } catch (e) {
+    statusEl.textContent = 'Error: ' + (e && e.message ? e.message : e);
+    submitBtn.disabled = false;
+    return;
+  }
+
+  pollForResults();
+});
+
+function pollForResults() {
+  var maxWait = 180000;
+  var interval = 1000;
+  var elapsed = 0;
+
+  function check() {
+    chrome.storage.local.get(['lastRunResults', 'lastRunFinishedAt'], (res) => {
+      if (res.lastRunFinishedAt && res.lastRunResults) {
+        displayResults(res.lastRunResults);
+        var successCount = res.lastRunResults.filter(function (r) { return r.status === 'success'; }).length;
+        var totalCount = res.lastRunResults.length;
+        statusEl.textContent = 'Done: ' + successCount + '/' + totalCount + ' succeeded.';
+        submitBtn.disabled = false;
+        return;
+      }
+      elapsed += interval;
+      if (elapsed >= maxWait) {
+        statusEl.textContent = 'Timed out waiting for results. Check service worker console.';
+        submitBtn.disabled = false;
+        return;
+      }
+      setTimeout(check, interval);
+    });
+  }
+  check();
+}
