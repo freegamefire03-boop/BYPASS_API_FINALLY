@@ -45,6 +45,12 @@
 // to settle, and re-runs the same two-stage verification. This fixes false
 // failures caused by sites pausing or delaying DOM updates while backgrounded.
 //
+// RETRY ENTER: If the targeted re-check still fails and the marked input
+// box still contains the prompt text, the extension re-focuses that exact
+// input box, re-attaches the debugger, and sends one more trusted Enter
+// keystroke. This is the final rescue step. If it fails, the tab remains
+// flagged as failed.
+//
 // An "experimentalBackground" toggle keeps the old direct/no-cycling
 // behavior available (all tabs stay in the background, no cycling) for
 // anyone who wants to try it anyway — expect it to fail on most sites,
@@ -199,6 +205,24 @@ async function cleanupInputElementMark(tabId) {
       }
     });
   } catch (e) {}
+}
+
+async function focusMarkedInput(tabId) {
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        const el = document.querySelector('[data-autoprompt-input="true"]');
+        if (!el) return false;
+
+        el.focus();
+        return true;
+      }
+    });
+    return !!(results && results[0] && results[0].result);
+  } catch (e) {
+    return false;
+  }
 }
 
 // ---- Tab-navigation fallback helpers ----------------------------------------
@@ -398,6 +422,21 @@ async function sendTextThenEnter(tabId, prompt) {
   });
 }
 
+async function sendEnterOnly(tabId) {
+  await dispatchKey(tabId, {
+    type: 'rawKeyDown',
+    windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, macCharCode: 13,
+    code: 'Enter', key: 'Enter', text: '\r', unmodifiedText: '\r'
+  });
+  await dispatchKey(tabId, { type: 'char', text: '\r' });
+  await delay(30);
+  await dispatchKey(tabId, {
+    type: 'keyUp',
+    windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13,
+    code: 'Enter', key: 'Enter'
+  });
+}
+
 // ---- Post-send verification (two-stage: URL change + input clearing) --------
 
 async function verifySend(tabId, originalUrl, logger) {
@@ -437,7 +476,7 @@ async function verifySend(tabId, originalUrl, logger) {
   return { verified: false, reason: 'URL unchanged and input still contains text — send failed' };
 }
 
-// ---- Targeted re-check for tabs that failed initial verification ------------
+// ---- Targeted re-check + Stage 3 retry Enter -------------------------------
 
 async function recheckFailedTab(result, logger) {
   try {
@@ -454,17 +493,79 @@ async function recheckFailedTab(result, logger) {
     // Give the site time to settle after being brought back to the front
     await delay(1500);
 
-    // Re-run the same two-stage verification: URL change + input clearing
+    // ---- Stage 2: targeted re-check (unchanged) ----
     const verification = await verifySend(result.tabId, result.url, logger);
 
     if (verification.verified) {
       result.status = 'success';
       result.reason = `Re-check success: ${verification.reason}`;
       logger.log(result.tabId, 'Re-check passed — status updated to success');
-    } else {
+      return;
+    }
+
+    logger.log(result.tabId, 'Re-check failed — evaluating Stage 3 (Retry Enter)');
+
+    // ---- Stage 3: Retry Enter only if the input box still contains text ----
+    const remainingText = await getMarkedInputContent(result.tabId);
+
+    if (remainingText === null || remainingText.trim() === '') {
       result.status = 'error';
       result.reason = `Re-check failed: ${verification.reason}`;
-      logger.log(result.tabId, 'Re-check failed — status remains error');
+      logger.log(result.tabId, 'Stage 3 skipped — input box is empty or no longer exists');
+      return;
+    }
+
+    logger.log(result.tabId, 'Stage 3: input box still contains text — focusing input and retrying Enter');
+
+    const focused = await focusMarkedInput(result.tabId);
+    if (!focused) {
+      result.status = 'error';
+      result.reason = `Re-check failed: ${verification.reason}; Retry Enter skipped (could not focus marked input)`;
+      logger.log(result.tabId, 'Stage 3 failed — could not focus marked input');
+      return;
+    }
+
+    await delay(200);
+
+    // Re-attach the debugger because trusted Enter key events require it
+    let debuggerAttached = false;
+    try {
+      await chrome.debugger.attach({ tabId: result.tabId }, '1.3');
+      debuggerAttached = true;
+      logger.log(result.tabId, 'Stage 3: debugger re-attached for Enter retry');
+    } catch (e) {
+      logger.log(result.tabId, `Stage 3: debugger attach failed: ${e.message}`);
+    }
+
+    if (!debuggerAttached) {
+      result.status = 'error';
+      result.reason = `Re-check failed: ${verification.reason}; Retry Enter skipped (debugger attach failed)`;
+      return;
+    }
+
+    try {
+      await sendEnterOnly(result.tabId);
+      logger.log(result.tabId, 'Stage 3: Enter retry dispatched');
+
+      // Small settle delay before final verification
+      await delay(300);
+
+      const retryVerification = await verifySend(result.tabId, result.url, logger);
+
+      if (retryVerification.verified) {
+        result.status = 'success';
+        result.reason = `Retry Enter success: ${retryVerification.reason}`;
+        logger.log(result.tabId, 'Stage 3 passed — status updated to success');
+      } else {
+        result.status = 'error';
+        result.reason = `Retry Enter failed: ${retryVerification.reason}`;
+        logger.log(result.tabId, 'Stage 3 failed — status remains error');
+      }
+    } finally {
+      try {
+        await chrome.debugger.detach({ tabId: result.tabId });
+        logger.log(result.tabId, 'Stage 3: debugger detached');
+      } catch (_e) {}
     }
   } catch (e) {
     logger.log(result.tabId || result.url, `Re-check error: ${e.message}`);
@@ -473,7 +574,7 @@ async function recheckFailedTab(result, logger) {
   } finally {
     delete result.needsRecheck;
 
-    // Clean up the temporary input mark now that re-check is finished
+    // Clean up the temporary input mark now that re-check and retry are finished
     if (result.tabId) {
       try {
         await cleanupInputElementMark(result.tabId);
