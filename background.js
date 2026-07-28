@@ -39,6 +39,12 @@
 // the site consumed the prompt. If both stages fail, the tab is flagged
 // as a definitive failure (not "uncertain").
 //
+// TARGETED RE-CHECK: If initial verification fails on a tab that received
+// the prompt, the extension does not immediately give up. After all tabs
+// are processed, it re-activates only the failed tabs, waits for the page
+// to settle, and re-runs the same two-stage verification. This fixes false
+// failures caused by sites pausing or delaying DOM updates while backgrounded.
+//
 // An "experimentalBackground" toggle keeps the old direct/no-cycling
 // behavior available (all tabs stay in the background, no cycling) for
 // anyone who wants to try it anyway — expect it to fail on most sites,
@@ -431,6 +437,51 @@ async function verifySend(tabId, originalUrl, logger) {
   return { verified: false, reason: 'URL unchanged and input still contains text — send failed' };
 }
 
+// ---- Targeted re-check for tabs that failed initial verification ------------
+
+async function recheckFailedTab(result, logger) {
+  try {
+    const tab = await chrome.tabs.get(result.tabId);
+
+    // Re-activate the tab so the site's JavaScript wakes up and updates the DOM/URL
+    await chrome.tabs.update(result.tabId, { active: true });
+    if (tab && tab.windowId !== undefined) {
+      await chrome.windows.update(tab.windowId, { focused: true });
+    }
+
+    logger.log(result.tabId, `Re-check: activated tab (${result.url})`);
+
+    // Give the site time to settle after being brought back to the front
+    await delay(1500);
+
+    // Re-run the same two-stage verification: URL change + input clearing
+    const verification = await verifySend(result.tabId, result.url, logger);
+
+    if (verification.verified) {
+      result.status = 'success';
+      result.reason = `Re-check success: ${verification.reason}`;
+      logger.log(result.tabId, 'Re-check passed — status updated to success');
+    } else {
+      result.status = 'error';
+      result.reason = `Re-check failed: ${verification.reason}`;
+      logger.log(result.tabId, 'Re-check failed — status remains error');
+    }
+  } catch (e) {
+    logger.log(result.tabId || result.url, `Re-check error: ${e.message}`);
+    result.status = 'error';
+    result.reason = `Re-check error: ${e.message}`;
+  } finally {
+    delete result.needsRecheck;
+
+    // Clean up the temporary input mark now that re-check is finished
+    if (result.tabId) {
+      try {
+        await cleanupInputElementMark(result.tabId);
+      } catch (_e) {}
+    }
+  }
+}
+
 // ---- Mode 1 (default): open in parallel, then auto-cycle focus -------------
 
 async function openAndAttach(url, skipWait, logger) {
@@ -508,19 +559,27 @@ async function sendToActivatedTab(tabId, url, prompt, logger) {
 
     const verification = await verifySend(tabId, url, logger);
 
-    await cleanupInputElementMark(tabId);
-
     if (verification.verified) {
+      // Success — clean up the temporary input mark immediately
+      await cleanupInputElementMark(tabId);
       result.status = 'success';
       result.reason = verification.reason;
     } else {
+      // Failed — keep the input mark so the targeted re-check can inspect the same input box later
       result.status = 'error';
       result.reason = verification.reason;
+      result.needsRecheck = true;
+      logger.log(tabId, 'Initial verification failed — tab marked for targeted re-check');
     }
   } catch (e) {
     logger.log(tabId, `Error during send: ${e.message}`);
     result.status = 'error';
     result.reason = e.message;
+
+    // Clean up the temporary input mark if it was added before the error
+    try {
+      await cleanupInputElementMark(tabId);
+    } catch (_e) {}
   } finally {
     try {
       await chrome.debugger.detach({ tabId });
@@ -566,13 +625,15 @@ async function runAutomationAutoCycle(urls, prompt, skipWait, logger) {
 
     if (readyQueue.length === 0 && Date.now() - startTime > 1000) {
       logger.log('main', '1s elapsed with no ready tabs. Forcing first tab into queue.');
-      const firstResult = await tabPromises[0];
+      const firstIdx = tabPromises.findIndex(p => p !== null);
+      if (firstIdx === -1) break;
+      const firstResult = await tabPromises[firstIdx];
       if (firstResult.ok && firstResult.tabId) {
         readyQueue.push(firstResult);
       } else {
         failedTabs.push(firstResult);
       }
-      tabPromises[0] = null;
+      tabPromises[firstIdx] = null;
       break;
     }
 
@@ -605,6 +666,23 @@ async function runAutomationAutoCycle(urls, prompt, skipWait, logger) {
     const result = await sendToActivatedTab(state.tabId, state.url, prompt, logger);
     results.push(result);
   }
+
+  // ---- Targeted re-check phase ----
+  // Only re-check tabs where the prompt was sent but initial verification failed.
+  const tabsToRecheck = results.filter((r) => r.needsRecheck && r.tabId);
+
+  if (tabsToRecheck.length > 0) {
+    logger.log('main', `Initial pass complete. ${tabsToRecheck.length} tab(s) flagged as failed — starting targeted re-check.`);
+
+    for (const failedResult of tabsToRecheck) {
+      await recheckFailedTab(failedResult, logger);
+    }
+  } else {
+    logger.log('main', 'Initial pass complete. No tabs need targeted re-check.');
+  }
+
+  // Remove internal flag before saving/displaying results
+  results.forEach((r) => delete r.needsRecheck);
 
   await chrome.storage.local.set({ lastRunResults: results, lastRunFinishedAt: Date.now() });
   logger.log('main', `Run complete. Results stored: ${results.length} tab(s)`);
