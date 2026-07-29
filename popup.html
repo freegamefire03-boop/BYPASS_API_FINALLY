@@ -132,8 +132,8 @@
 
   <div class="toggle-row">
     <div>
-      <div class="toggle-label">Experimental: background mode</div>
-      <div class="toggle-hint">All tabs stay in background (no cycling). Fails on most sites.</div>
+      <div class="toggle-label">Stealth mode (background)</div>
+      <div class="toggle-hint">All tabs run in parallel. Works while Chrome is minimized. No focus stealing.</div>
     </div>
     <label class="switch">
       <input type="checkbox" id="experimentalBackground">
@@ -158,6 +158,19 @@
   <div id="results-section">
     <h4>Run Results</h4>
     <div id="results-list"></div>
+  </div>
+
+  <div id="stealth-section" style="margin-top:14px; border-top:1px solid #333; padding-top:10px;">
+    <h4 style="margin:0 0 6px 0; font-size:12px; color:#aaa; font-weight:600;">Stealth Mode Experiment</h4>
+    <div style="font-size:10px; color:#777; margin-bottom:8px; line-height:1.4;">
+      Tests if CDP input works while Chrome is minimized. Minimize Chrome immediately after clicking the button.
+    </div>
+    <label for="stealthUrl" style="font-size:12px; color:#aaa; display:block; margin-bottom:4px;">Test URL</label>
+    <input type="text" id="stealthUrl" placeholder="https://claude.ai/new" style="width:100%; box-sizing:border-box; background:#2b2b2b; border:1px solid #444; color:#eee; border-radius:6px; padding:8px; font-size:13px;">
+    <button id="stealthTestBtn" style="width:100%; margin-top:10px; padding:8px; border:none; border-radius:6px; background:#ff9800; color:#1e1e1e; font-size:13px; font-weight:600; cursor:pointer;">
+      Run Stealth Test (then minimize Chrome)
+    </button>
+    <div id="stealthStatus" style="margin-top:6px; font-size:11px; color:#9ad; min-height:14px; white-space:pre-line;"></div>
   </div>
 
   <script src="popup.js"></script>

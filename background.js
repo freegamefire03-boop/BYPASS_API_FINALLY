@@ -73,6 +73,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse({ ok: true });
     return true;
   }
+
+  if (msg.type === 'RUN_STEALTH_TEST') {
+    runStealthExperiment(msg.url, msg.prompt)
+      .then((result) => sendResponse(result))
+      .catch((err) => sendResponse({ success: false, reason: err.message }));
+    return true;
+  }
+
+  if (msg.type === 'RUN_STEALTH_MULTI_TEST') {
+    runStealthMultiTest(msg.urls, msg.prompt)
+      .then((results) => sendResponse({ results }))
+      .catch((err) => sendResponse({ results: [], error: err.message }));
+    return true;
+  }
+
   return false;
 });
 
@@ -790,88 +805,315 @@ async function runAutomationAutoCycle(urls, prompt, skipWait, logger) {
   return results;
 }
 
-// ---- Mode 2 (experimental/legacy): stay in the background, no cycling -----
+// ---- Stealth mode helpers ---------------------------------------------------
 
-async function runSingleTabFlowDirect(url, skipWait, prompt, logger) {
-  const result = { url, tabId: null, status: 'unknown', reason: '' };
-  const tab = await chrome.tabs.create({ url, active: false });
-  const tabId = tab.id;
-  result.tabId = tabId;
-  logger.log(tabId, `Opened tab for ${url} (experimental: direct background mode)`);
+async function stealthSetupTab(url, logger) {
+  const state = { url, tabId: null, ok: false, error: null };
 
   try {
-    await chrome.debugger.attach({ tabId }, '1.3');
-    logger.log(tabId, 'Debugger attached');
-  } catch (err) {
-    logger.log(tabId, `Debugger attach failed: ${err.message}`);
-    result.status = 'error';
-    result.reason = `Debugger attach failed: ${err.message}`;
-    return result;
+    // Create tab as about:blank so spoofing is injected BEFORE the real page loads
+    const tab = await chrome.tabs.create({ url: 'about:blank', active: false });
+    state.tabId = tab.id;
+    logger.log(tab.id, `Stealth: tab created as about:blank for ${url}`);
+
+    // Attach debugger and enable required CDP domains
+    await chrome.debugger.attach({ tabId: tab.id }, '1.3');
+    await chrome.debugger.sendCommand({ tabId: tab.id }, 'Page.enable');
+    await chrome.debugger.sendCommand({ tabId: tab.id }, 'DOM.enable');
+    await chrome.debugger.sendCommand({ tabId: tab.id }, 'Runtime.enable');
+    logger.log(tab.id, 'Stealth: debugger attached, CDP domains enabled');
+
+    // Inject hardened visibility/focus spoofing BEFORE any page JS runs
+    await chrome.debugger.sendCommand({ tabId: tab.id }, 'Page.addScriptToEvaluateOnNewDocument', {
+      source: `
+        (function() {
+          Object.defineProperty(document, 'hidden', { get: () => false, configurable: true });
+          Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: true });
+          Object.defineProperty(document, 'hasFocus', { value: () => true, configurable: true });
+          window.addEventListener('visibilitychange', (e) => { e.stopImmediatePropagation(); }, true);
+          window.addEventListener('blur', (e) => { e.stopImmediatePropagation(); }, true);
+        })();
+      `
+    });
+
+    // Enable focus emulation (may not exist in all Chrome versions)
+    try {
+      await chrome.debugger.sendCommand({ tabId: tab.id }, 'Emulation.setFocusEmulationEnabled', { enabled: true });
+    } catch (e) {
+      logger.log(tab.id, `Stealth: focus emulation not available: ${e.message}`);
+    }
+
+    // Navigate to the real URL — spoofing is already in place
+    await chrome.debugger.sendCommand({ tabId: tab.id }, 'Page.navigate', { url });
+    logger.log(tab.id, `Stealth: navigating to ${url}`);
+
+    state.ok = true;
+  } catch (e) {
+    logger.log(state.tabId || url, `Stealth setup failed: ${e.message}`);
+    state.error = e.message;
   }
 
+  return state;
+}
+
+async function stealthSendToTab(tabState, prompt, skipWait, logger) {
+  const { tabId, url } = tabState;
+  const result = { url, tabId, status: 'unknown', reason: '' };
+
   try {
+    // Wait for the page to load
     if (skipWait) {
-      await delay(1000);
+      await delay(1500);
+      logger.log(tabId, 'Stealth: skip-wait mode — used 1.5s settle delay');
     } else {
-      await waitForTabComplete(tabId);
+      await delay(500); // let navigation start
+      await waitForTabComplete(tabId, 30000);
       await delay(1200);
-    }
-    let focused = await waitForFocusedInput(tabId);
-
-    if (!focused) {
-      logger.log(tabId, 'Primary focus detection timed out — starting Tab navigation fallback');
-      focused = await findInputViaTabNavigation(tabId, logger);
+      logger.log(tabId, 'Stealth: waited for full page load + grace period');
     }
 
-    if (!focused) {
-      logger.log(tabId, 'Both primary and Tab fallback failed — no input box found, aborting tab');
+    // DOM search for the best input candidate via Runtime.evaluate
+    const evalResult = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
+      expression: `
+        (function() {
+          const selectors = 'textarea, [contenteditable="true"], input[type="text"], input:not([type])';
+          const elements = Array.from(document.querySelectorAll(selectors));
+          let best = null;
+          let maxScore = -1;
+          elements.forEach(el => {
+            const style = getComputedStyle(el);
+            if (style.display === 'none') return;
+            if (style.visibility === 'hidden') return;
+            if (style.opacity === '0') return;
+            const rect = el.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) return;
+            const tag = el.tagName.toLowerCase();
+            let score = 0;
+            if (tag === 'textarea') score += 100;
+            if (el.isContentEditable) score += 80;
+            if (tag === 'input') score += 40;
+            if (rect.width > 400) score += 30;
+            if (rect.height > 60) score += 20;
+            if (rect.height > 200) score += 10;
+            const ph = (el.placeholder || el.getAttribute('aria-label') || el.getAttribute('data-placeholder') || '').toLowerCase();
+            if (/message|prompt|ask|chat|type/.test(ph)) score += 15;
+            if (rect.y > window.innerHeight * 0.5) score += 10;
+            if (/search/.test(ph) && tag === 'input') score -= 20;
+            if (score > maxScore) { maxScore = score; best = el; }
+          });
+          if (best) best.setAttribute('data-autoprompt-input', 'true');
+          return best;
+        })()
+      `,
+      returnByValue: false
+    });
+
+    if (!evalResult || !evalResult.result || !evalResult.result.objectId) {
+      logger.log(tabId, 'Stealth: no input candidate found by DOM search');
       result.status = 'error';
-      result.reason = 'No input box found (primary detection + Tab fallback both failed)';
+      result.reason = 'No input box found (stealth DOM search)';
       return result;
     }
 
-    logger.log(tabId, 'Input box focused — proceeding with text insertion');
-    await delay(250);
+    logger.log(tabId, 'Stealth: input candidate found — focusing via CDP DOM.focus');
 
-    await markInputElement(tabId);
+    // Protocol-level focus — bypasses OS focus requirement
+    await chrome.debugger.sendCommand({ tabId }, 'DOM.focus', { objectId: evalResult.result.objectId });
+    await delay(300);
 
-    await sendTextThenEnter(tabId, prompt);
-    logger.log(tabId, 'Text inserted + Enter dispatched');
+    // Insert text and press Enter
+    await chrome.debugger.sendCommand({ tabId }, 'Input.insertText', { text: prompt });
+    await delay(600);
 
+    await dispatchKey(tabId, {
+      type: 'rawKeyDown',
+      windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, macCharCode: 13,
+      code: 'Enter', key: 'Enter', text: '\r', unmodifiedText: '\r'
+    });
+    await dispatchKey(tabId, { type: 'char', text: '\r' });
+    await delay(30);
+    await dispatchKey(tabId, {
+      type: 'keyUp',
+      windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13,
+      code: 'Enter', key: 'Enter'
+    });
+
+    logger.log(tabId, 'Stealth: text inserted + Enter dispatched');
+
+    // Two-stage verification (reuses existing verifySend)
     const verification = await verifySend(tabId, url, logger);
 
-    await cleanupInputElementMark(tabId);
+    if (verification.verified) {
+      await cleanupInputElementMark(tabId);
+      result.status = 'success';
+      result.reason = verification.reason;
+    } else {
+      // Keep the input mark for re-check
+      result.status = 'error';
+      result.reason = verification.reason;
+      result.needsRecheck = true;
+      logger.log(tabId, 'Stealth: initial verification failed — marked for re-check');
+    }
 
-    result.status = verification.verified ? 'success' : 'error';
-    result.reason = verification.reason;
   } catch (e) {
-    logger.log(tabId, `Error: ${e.message}`);
+    logger.log(tabId, `Stealth send error: ${e.message}`);
     result.status = 'error';
     result.reason = e.message;
-  } finally {
-    await delay(400);
-    try {
-      await chrome.debugger.detach({ tabId });
-      logger.log(tabId, 'Debugger detached');
-    } catch (e) {}
+    try { await cleanupInputElementMark(tabId); } catch (_e) {}
   }
+
   return result;
 }
 
-async function runAutomationDirect(urls, prompt, skipWait, logger) {
-  logger.log('main', `Starting run: ${urls.length} URL(s), skipWait=${skipWait}, mode=direct-background (experimental)`);
+async function stealthRecheckFailedTab(result, logger) {
+  try {
+    logger.log(result.tabId, `Stealth re-check: waiting for page to settle (${result.url})`);
 
-  const results = await Promise.all(
-    urls.map((url) =>
-      runSingleTabFlowDirect(url, skipWait, prompt, logger).catch((err) => {
-        logger.log(url, `Flow failed: ${err.message}`);
-        return { url, tabId: null, status: 'error', reason: err.message };
-      })
-    )
+    // Wait for the site to finish processing (no tab activation)
+    await delay(2000);
+
+    // ---- Stage 2: re-run verification ----
+    const verification = await verifySend(result.tabId, result.url, logger);
+
+    if (verification.verified) {
+      result.status = 'success';
+      result.reason = `Re-check success: ${verification.reason}`;
+      logger.log(result.tabId, 'Stealth re-check passed — status updated to success');
+      return;
+    }
+
+    logger.log(result.tabId, 'Stealth re-check failed — evaluating Stage 3 (Retry Enter)');
+
+    // ---- Stage 3: Retry Enter only if input still contains text ----
+    const remainingText = await getMarkedInputContent(result.tabId);
+
+    if (remainingText === null || remainingText.trim() === '') {
+      result.status = 'error';
+      result.reason = `Re-check failed: ${verification.reason}`;
+      logger.log(result.tabId, 'Stage 3 skipped — input box is empty or no longer exists');
+      return;
+    }
+
+    logger.log(result.tabId, 'Stage 3: input still has text — re-focusing via CDP and retrying Enter');
+
+    // Re-focus the marked element via CDP (not JavaScript .focus())
+    try {
+      const focusResult = await chrome.debugger.sendCommand({ tabId: result.tabId }, 'Runtime.evaluate', {
+        expression: `
+          (function() {
+            const el = document.querySelector('[data-autoprompt-input="true"]');
+            return el || null;
+          })()
+        `,
+        returnByValue: false
+      });
+
+      if (focusResult && focusResult.result && focusResult.result.objectId) {
+        await chrome.debugger.sendCommand({ tabId: result.tabId }, 'DOM.focus', { objectId: focusResult.result.objectId });
+        await delay(200);
+      } else {
+        logger.log(result.tabId, 'Stage 3: could not find marked element via CDP');
+        result.status = 'error';
+        result.reason = `Re-check failed: ${verification.reason}; Retry Enter skipped (element not found)`;
+        return;
+      }
+    } catch (e) {
+      logger.log(result.tabId, `Stage 3: CDP focus error: ${e.message}`);
+      result.status = 'error';
+      result.reason = `Re-check failed: ${verification.reason}; Retry Enter skipped (CDP focus error)`;
+      return;
+    }
+
+    // Debugger is still attached from the initial send — no need to re-attach
+    try {
+      await sendEnterOnly(result.tabId);
+      logger.log(result.tabId, 'Stage 3: Enter retry dispatched');
+      await delay(300);
+
+      const retryVerification = await verifySend(result.tabId, result.url, logger);
+
+      if (retryVerification.verified) {
+        result.status = 'success';
+        result.reason = `Retry Enter success: ${retryVerification.reason}`;
+        logger.log(result.tabId, 'Stage 3 passed — status updated to success');
+      } else {
+        result.status = 'error';
+        result.reason = `Retry Enter failed: ${retryVerification.reason}`;
+        logger.log(result.tabId, 'Stage 3 failed — status remains error');
+      }
+    } catch (e) {
+      logger.log(result.tabId, `Stage 3 error: ${e.message}`);
+      result.status = 'error';
+      result.reason = `Retry Enter error: ${e.message}`;
+    }
+
+  } catch (e) {
+    logger.log(result.tabId || result.url, `Stealth re-check error: ${e.message}`);
+    result.status = 'error';
+    result.reason = `Re-check error: ${e.message}`;
+  } finally {
+    delete result.needsRecheck;
+    if (result.tabId) {
+      try { await cleanupInputElementMark(result.tabId); } catch (_e) {}
+    }
+  }
+}
+
+async function runAutomationStealth(urls, prompt, skipWait, logger) {
+  logger.log('main', `Starting run: ${urls.length} URL(s), skipWait=${skipWait}, mode=stealth (parallel background)`);
+
+  // 1. Setup all tabs in parallel (about:blank → spoofing → navigate)
+  const setupResults = await Promise.all(
+    urls.map((url) => stealthSetupTab(url, logger))
   );
 
+  const results = [];
+  const readyTabs = [];
+
+  for (const state of setupResults) {
+    if (state.ok && state.tabId) {
+      readyTabs.push(state);
+    } else {
+      results.push({ url: state.url, tabId: state.tabId || null, status: 'error', reason: `Stealth setup failed: ${state.error || 'unknown'}` });
+    }
+  }
+
+  logger.log('main', `Stealth: ${readyTabs.length} tab(s) ready, ${results.length} failed setup`);
+
+  // 2. Send to ALL ready tabs in parallel
+  const sendResults = await Promise.all(
+    readyTabs.map((state) => stealthSendToTab(state, prompt, skipWait, logger))
+  );
+  results.push(...sendResults);
+
+  // 3. Targeted re-check for tabs that failed initial verification
+  const tabsToRecheck = results.filter((r) => r.needsRecheck && r.tabId);
+
+  if (tabsToRecheck.length > 0) {
+    logger.log('main', `Stealth: ${tabsToRecheck.length} tab(s) flagged — starting targeted re-check`);
+    for (const failedResult of tabsToRecheck) {
+      await stealthRecheckFailedTab(failedResult, logger);
+    }
+  } else {
+    logger.log('main', 'Stealth: no tabs need targeted re-check');
+  }
+
+  // 4. Cleanup: disable emulation and detach all debuggers
+  for (const state of readyTabs) {
+    try {
+      await chrome.debugger.sendCommand({ tabId: state.tabId }, 'Emulation.setFocusEmulationEnabled', { enabled: false });
+    } catch (_e) {}
+    try {
+      await chrome.debugger.detach({ tabId: state.tabId });
+      logger.log(state.tabId, 'Stealth: debugger detached');
+    } catch (_e) {}
+  }
+
+  // Remove internal flags before saving
+  results.forEach((r) => delete r.needsRecheck);
+
   await chrome.storage.local.set({ lastRunResults: results, lastRunFinishedAt: Date.now() });
-  logger.log('main', `Run complete. Results stored: ${results.length} tab(s)`);
+  logger.log('main', `Stealth run complete. Results stored: ${results.length} tab(s)`);
   return results;
 }
 
@@ -889,7 +1131,7 @@ async function runAutomation(urls, prompt, opts) {
 
     let results;
     if (opts.experimentalBackground) {
-      results = await runAutomationDirect(urls, prompt, opts.skipWait, logger);
+      results = await runAutomationStealth(urls, prompt, opts.skipWait, logger);
     } else {
       results = await runAutomationAutoCycle(urls, prompt, opts.skipWait, logger);
     }
@@ -902,8 +1144,433 @@ async function runAutomation(urls, prompt, opts) {
     await logger.flush({
       urls,
       skipWait: opts.skipWait,
-      mode: opts.experimentalBackground ? 'direct-background' : 'auto-cycle',
+      mode: opts.experimentalBackground ? 'stealth' : 'auto-cycle',
       finishedAt: new Date().toISOString()
     });
   }
+}
+
+// ============================================================================
+// STEALTH MODE EXPERIMENT
+// Tests whether CDP trusted input works on a minimized Chrome window.
+// Uses: about:blank pre-load → visibility spoofing → Page.navigate →
+//       DOM search → CDP DOM.focus → Input.insertText → Enter
+// ============================================================================
+
+async function runStealthExperiment(url, prompt) {
+  const log = (msg) => console.log(`[Stealth Test] ${msg}`);
+  log(`Starting experiment for ${url}`);
+
+  // 1. Create tab as about:blank so we can inject spoofing BEFORE the real page loads
+  const tab = await chrome.tabs.create({ url: 'about:blank', active: false });
+  const tabId = tab.id;
+  log(`Tab created as about:blank (tabId: ${tabId})`);
+
+  try {
+    // 2. Attach debugger and enable required CDP domains
+    await chrome.debugger.attach({ tabId }, '1.3');
+    log('Debugger attached');
+
+    await chrome.debugger.sendCommand({ tabId }, 'Page.enable');
+    await chrome.debugger.sendCommand({ tabId }, 'DOM.enable');
+    await chrome.debugger.sendCommand({ tabId }, 'Runtime.enable');
+    log('CDP domains enabled (Page, DOM, Runtime)');
+
+    // 3. HARDENED VISIBILITY SPOOFING — injected before any page JS runs
+    //    Uses getters so the site cannot easily overwrite them.
+    //    Intercepts visibilitychange events to prevent the site from
+    //    detecting that it was ever hidden.
+    await chrome.debugger.sendCommand({ tabId }, 'Page.addScriptToEvaluateOnNewDocument', {
+      source: `
+        (function() {
+          Object.defineProperty(document, 'hidden', { get: () => false, configurable: true });
+          Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: true });
+          Object.defineProperty(document, 'hasFocus', { value: () => true, configurable: true });
+          window.addEventListener('visibilitychange', (e) => {
+            e.stopImmediatePropagation();
+          }, true);
+          window.addEventListener('blur', (e) => {
+            e.stopImmediatePropagation();
+          }, true);
+        })();
+      `
+    });
+    log('Visibility/focus spoofing registered (pre-load)');
+
+    // 4. Enable CDP focus emulation
+    try {
+      await chrome.debugger.sendCommand({ tabId }, 'Emulation.setFocusEmulationEnabled', { enabled: true });
+      log('Focus emulation enabled');
+    } catch (e) {
+      log(`Focus emulation not available: ${e.message} — continuing without it`);
+    }
+
+    // 5. NOW navigate to the real URL — spoofing is already in place
+    await chrome.debugger.sendCommand({ tabId }, 'Page.navigate', { url });
+    log(`Navigating to ${url} ...`);
+
+    // 6. Wait for the page to load
+    //    For this experiment we use a fixed delay. In production we would
+    //    listen for Page.loadEventFired or Page.frameStoppedLoading.
+    log('Waiting 5 seconds for page load...');
+    await delay(5000);
+
+    // 7. DOM SEARCH via Runtime.evaluate — returns a CDP RemoteObjectId
+    //    Uses getComputedStyle + getBoundingClientRect instead of offsetParent
+    //    to correctly handle position:fixed and position:sticky elements.
+    const evalResult = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
+      expression: `
+        (function() {
+          const selectors = 'textarea, [contenteditable="true"], input[type="text"], input:not([type])';
+          const elements = Array.from(document.querySelectorAll(selectors));
+          let best = null;
+          let maxScore = -1;
+
+          elements.forEach(el => {
+            // Robust visibility check — does NOT use offsetParent
+            const style = getComputedStyle(el);
+            if (style.display === 'none') return;
+            if (style.visibility === 'hidden') return;
+            if (style.opacity === '0') return;
+
+            const rect = el.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) return;
+
+            const tag = el.tagName.toLowerCase();
+            let score = 0;
+
+            // Tag type scoring
+            if (tag === 'textarea') score += 100;
+            if (el.isContentEditable) score += 80;
+            if (tag === 'input') score += 40;
+
+            // Size scoring — chat inputs are large
+            if (rect.width > 400) score += 30;
+            if (rect.height > 60) score += 20;
+            if (rect.height > 200) score += 10;
+
+            // Placeholder / label hints
+            const ph = (el.placeholder || el.getAttribute('aria-label') || el.getAttribute('data-placeholder') || '').toLowerCase();
+            if (/message|prompt|ask|chat|type/.test(ph)) score += 15;
+
+            // Position — chat inputs are usually in the lower half
+            if (rect.y > window.innerHeight * 0.5) score += 10;
+
+            // Penalty for search-like inputs
+            if (/search/.test(ph) && tag === 'input') score -= 20;
+
+            if (score > maxScore) {
+              maxScore = score;
+              best = el;
+            }
+          });
+
+          if (best) {
+            best.setAttribute('data-autoprompt-input', 'true');
+          }
+          return best;
+        })()
+      `,
+      returnByValue: false
+    });
+
+    if (!evalResult || !evalResult.result || !evalResult.result.objectId) {
+      log('FAILED: No suitable input candidate found by DOM search');
+      return { success: false, reason: 'No input candidate found' };
+    }
+
+    const objectId = evalResult.result.objectId;
+    log(`Input candidate found (objectId: ${objectId})`);
+
+    // 8. PROTOCOL-LEVEL FOCUS via DOM.focus — bypasses OS focus requirement
+    await chrome.debugger.sendCommand({ tabId }, 'DOM.focus', { objectId });
+    log('CDP DOM.focus applied to candidate element');
+    await delay(300);
+
+    // 9. INSERT TEXT via CDP
+    log('Inserting prompt via Input.insertText...');
+    await chrome.debugger.sendCommand({ tabId }, 'Input.insertText', { text: prompt });
+    await delay(600);
+
+    // 10. PRESS ENTER via CDP
+    log('Dispatching Enter key...');
+    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchKeyEvent', {
+      type: 'rawKeyDown',
+      windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, macCharCode: 13,
+      code: 'Enter', key: 'Enter', text: '\r', unmodifiedText: '\r'
+    });
+    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchKeyEvent', { type: 'char', text: '\r' });
+    await delay(30);
+    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13,
+      code: 'Enter', key: 'Enter'
+    });
+    log('Enter dispatched');
+
+    // 11. WAIT AND VERIFY
+    log('Waiting 3 seconds to check result...');
+    await delay(3000);
+
+    // Check if the URL changed
+    const currentTab = await chrome.tabs.get(tabId);
+    const urlChanged = currentTab.url !== url && currentTab.url !== 'about:blank';
+
+    // Check if the input box was cleared
+    let inputCleared = false;
+    try {
+      const checkResult = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
+        expression: `
+          (function() {
+            const el = document.querySelector('[data-autoprompt-input="true"]');
+            if (!el) return 'element_gone';
+            const val = el.value !== undefined ? el.value : (el.innerText || el.textContent || '');
+            return val.trim() === '' ? 'empty' : 'has_text';
+          })()
+        `,
+        returnByValue: true
+      });
+      const state = checkResult && checkResult.result ? checkResult.result.value : 'unknown';
+      inputCleared = (state === 'empty' || state === 'element_gone');
+      log(`Input state after send: ${state}`);
+    } catch (e) {
+      log(`Input check error: ${e.message}`);
+    }
+
+    const success = urlChanged || inputCleared;
+    const reason = urlChanged
+      ? 'URL changed — prompt was sent'
+      : inputCleared
+        ? 'Input box cleared — prompt was sent'
+        : 'URL unchanged and input still has text — send likely failed';
+
+    log(`RESULT: ${success ? 'SUCCESS' : 'FAILED'} — ${reason}`);
+    return { success, reason, urlChanged, inputCleared };
+
+  } catch (err) {
+    log(`Error during experiment: ${err.message}`);
+    return { success: false, reason: `Error: ${err.message}` };
+  } finally {
+    // Clean up: disable emulation, detach debugger
+    try {
+      await chrome.debugger.sendCommand({ tabId }, 'Emulation.setFocusEmulationEnabled', { enabled: false });
+    } catch (_e) {}
+    try {
+      await chrome.debugger.detach({ tabId });
+      log('Debugger detached');
+    } catch (_e) {}
+  }
+}
+
+// ============================================================================
+// MULTI-TAB STEALTH TEST
+// Tests whether CDP trusted input works on MULTIPLE minimized tabs in parallel.
+// ============================================================================
+
+async function runStealthMultiTest(urls, prompt) {
+  const log = (msg) => console.log(`[Stealth Multi] ${msg}`);
+  log(`Starting multi-tab test: ${urls.length} URL(s)`);
+
+  // 1. Create all tabs as about:blank
+  const tabs = [];
+  for (const url of urls) {
+    const tab = await chrome.tabs.create({ url: 'about:blank', active: false });
+    tabs.push({ url, tabId: tab.id });
+    log(`Tab created for ${url} (tabId: ${tab.id})`);
+  }
+
+  // 2. Setup each tab: attach debugger, enable domains, inject spoofing, enable focus emulation
+  for (const t of tabs) {
+    try {
+      await chrome.debugger.attach({ tabId: t.tabId }, '1.3');
+      await chrome.debugger.sendCommand({ tabId: t.tabId }, 'Page.enable');
+      await chrome.debugger.sendCommand({ tabId: t.tabId }, 'DOM.enable');
+      await chrome.debugger.sendCommand({ tabId: t.tabId }, 'Runtime.enable');
+
+      await chrome.debugger.sendCommand({ tabId: t.tabId }, 'Page.addScriptToEvaluateOnNewDocument', {
+        source: `
+          (function() {
+            Object.defineProperty(document, 'hidden', { get: () => false, configurable: true });
+            Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: true });
+            Object.defineProperty(document, 'hasFocus', { value: () => true, configurable: true });
+            window.addEventListener('visibilitychange', (e) => { e.stopImmediatePropagation(); }, true);
+            window.addEventListener('blur', (e) => { e.stopImmediatePropagation(); }, true);
+          })();
+        `
+      });
+
+      try {
+        await chrome.debugger.sendCommand({ tabId: t.tabId }, 'Emulation.setFocusEmulationEnabled', { enabled: true });
+      } catch (e) {
+        log(`Focus emulation not available for tab ${t.tabId}: ${e.message}`);
+      }
+
+      log(`Tab ${t.tabId} setup complete`);
+    } catch (e) {
+      log(`Tab ${t.tabId} setup FAILED: ${e.message}`);
+      t.error = e.message;
+    }
+  }
+
+  // 3. Navigate all tabs to their real URLs
+  for (const t of tabs) {
+    if (t.error) continue;
+    try {
+      await chrome.debugger.sendCommand({ tabId: t.tabId }, 'Page.navigate', { url: t.url });
+      log(`Navigating tab ${t.tabId} to ${t.url}`);
+    } catch (e) {
+      log(`Navigation failed for tab ${t.tabId}: ${e.message}`);
+      t.error = e.message;
+    }
+  }
+
+  // 4. Wait for all pages to load
+  log('Waiting 6 seconds for all pages to load...');
+  await delay(6000);
+
+  // 5. Send to ALL tabs in parallel
+  log('Sending to all tabs in parallel...');
+  const sendResults = await Promise.all(tabs.map(async (t) => {
+    if (t.error) {
+      return { url: t.url, tabId: t.tabId, success: false, reason: `Setup failed: ${t.error}` };
+    }
+
+    try {
+      // DOM search for input
+      const evalResult = await chrome.debugger.sendCommand({ tabId: t.tabId }, 'Runtime.evaluate', {
+        expression: `
+          (function() {
+            const selectors = 'textarea, [contenteditable="true"], input[type="text"], input:not([type])';
+            const elements = Array.from(document.querySelectorAll(selectors));
+            let best = null;
+            let maxScore = -1;
+            elements.forEach(el => {
+              const style = getComputedStyle(el);
+              if (style.display === 'none') return;
+              if (style.visibility === 'hidden') return;
+              if (style.opacity === '0') return;
+              const rect = el.getBoundingClientRect();
+              if (rect.width === 0 || rect.height === 0) return;
+              const tag = el.tagName.toLowerCase();
+              let score = 0;
+              if (tag === 'textarea') score += 100;
+              if (el.isContentEditable) score += 80;
+              if (tag === 'input') score += 40;
+              if (rect.width > 400) score += 30;
+              if (rect.height > 60) score += 20;
+              if (rect.height > 200) score += 10;
+              const ph = (el.placeholder || el.getAttribute('aria-label') || el.getAttribute('data-placeholder') || '').toLowerCase();
+              if (/message|prompt|ask|chat|type/.test(ph)) score += 15;
+              if (rect.y > window.innerHeight * 0.5) score += 10;
+              if (/search/.test(ph) && tag === 'input') score -= 20;
+              if (score > maxScore) { maxScore = score; best = el; }
+            });
+            if (best) best.setAttribute('data-autoprompt-input', 'true');
+            return best;
+          })()
+        `,
+        returnByValue: false
+      });
+
+      if (!evalResult || !evalResult.result || !evalResult.result.objectId) {
+        return { url: t.url, tabId: t.tabId, success: false, reason: 'No input candidate found' };
+      }
+
+      // CDP focus
+      await chrome.debugger.sendCommand({ tabId: t.tabId }, 'DOM.focus', { objectId: evalResult.result.objectId });
+      await delay(300);
+
+      // Insert text
+      await chrome.debugger.sendCommand({ tabId: t.tabId }, 'Input.insertText', { text: prompt });
+      await delay(600);
+
+      // Press Enter
+      await chrome.debugger.sendCommand({ tabId: t.tabId }, 'Input.dispatchKeyEvent', {
+        type: 'rawKeyDown',
+        windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, macCharCode: 13,
+        code: 'Enter', key: 'Enter', text: '\r', unmodifiedText: '\r'
+      });
+      await chrome.debugger.sendCommand({ tabId: t.tabId }, 'Input.dispatchKeyEvent', { type: 'char', text: '\r' });
+      await delay(30);
+      await chrome.debugger.sendCommand({ tabId: t.tabId }, 'Input.dispatchKeyEvent', {
+        type: 'keyUp',
+        windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13,
+        code: 'Enter', key: 'Enter'
+      });
+
+      log(`Tab ${t.tabId}: text inserted + Enter dispatched`);
+      return { url: t.url, tabId: t.tabId, success: true, reason: 'Sent (pending verification)' };
+
+    } catch (e) {
+      return { url: t.url, tabId: t.tabId, success: false, reason: `Send error: ${e.message}` };
+    }
+  }));
+
+  // 6. Wait and verify all tabs
+  log('Waiting 3 seconds before verification...');
+  await delay(3000);
+
+  const finalResults = [];
+  for (let i = 0; i < tabs.length; i++) {
+    const t = tabs[i];
+    const sr = sendResults[i];
+
+    if (!sr.success) {
+      finalResults.push(sr);
+      continue;
+    }
+
+    try {
+      const currentTab = await chrome.tabs.get(t.tabId);
+      const urlChanged = currentTab.url !== t.url && currentTab.url !== 'about:blank';
+
+      let inputCleared = false;
+      try {
+        const checkResult = await chrome.debugger.sendCommand({ tabId: t.tabId }, 'Runtime.evaluate', {
+          expression: `
+            (function() {
+              const el = document.querySelector('[data-autoprompt-input="true"]');
+              if (!el) return 'element_gone';
+              const val = el.value !== undefined ? el.value : (el.innerText || el.textContent || '');
+              return val.trim() === '' ? 'empty' : 'has_text';
+            })()
+          `,
+          returnByValue: true
+        });
+        const state = checkResult && checkResult.result ? checkResult.result.value : 'unknown';
+        inputCleared = (state === 'empty' || state === 'element_gone');
+        log(`Tab ${t.tabId} input state: ${state}`);
+      } catch (e) {
+        log(`Tab ${t.tabId} input check error: ${e.message}`);
+      }
+
+      const success = urlChanged || inputCleared;
+      const reason = urlChanged
+        ? 'URL changed — prompt was sent'
+        : inputCleared
+          ? 'Input box cleared — prompt was sent'
+          : 'URL unchanged and input still has text — send likely failed';
+
+      log(`Tab ${t.tabId} RESULT: ${success ? 'SUCCESS' : 'FAILED'} — ${reason}`);
+      finalResults.push({ url: t.url, tabId: t.tabId, success, reason, urlChanged, inputCleared });
+
+    } catch (e) {
+      finalResults.push({ url: t.url, tabId: t.tabId, success: false, reason: `Verify error: ${e.message}` });
+    }
+  }
+
+  // 7. Cleanup: detach all debuggers
+  for (const t of tabs) {
+    try {
+      await chrome.debugger.sendCommand({ tabId: t.tabId }, 'Emulation.setFocusEmulationEnabled', { enabled: false });
+    } catch (_e) {}
+    try {
+      await chrome.debugger.detach({ tabId: t.tabId });
+    } catch (_e) {}
+  }
+
+  const successCount = finalResults.filter(r => r.success).length;
+  log(`FINAL: ${successCount}/${finalResults.length} succeeded`);
+
+  return finalResults;
 }

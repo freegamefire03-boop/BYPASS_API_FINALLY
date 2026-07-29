@@ -110,6 +110,88 @@ submitBtn.addEventListener('click', async () => {
   pollForResults();
 });
 
+// ---- Stealth Mode Experiment ----
+const stealthUrlInput = document.getElementById('stealthUrl');
+const stealthTestBtn = document.getElementById('stealthTestBtn');
+const stealthStatusEl = document.getElementById('stealthStatus');
+
+// Restore last stealth test URL
+chrome.storage.local.get(['lastStealthUrl'], (res) => {
+  if (res.lastStealthUrl) stealthUrlInput.value = res.lastStealthUrl;
+});
+
+stealthTestBtn.addEventListener('click', async () => {
+  const testUrl = stealthUrlInput.value.trim();
+  const mainUrls = parseUrls(urlsInput.value);
+  const prompt = promptInput.value;
+
+  if (!prompt) {
+    stealthStatusEl.textContent = 'Enter a prompt in the main prompt box first.';
+    return;
+  }
+
+  const urlsToTest = mainUrls.length > 0 ? mainUrls : (testUrl ? [testUrl] : []);
+
+  if (urlsToTest.length === 0) {
+    stealthStatusEl.textContent = 'Enter URLs in the main box or the stealth URL field.';
+    return;
+  }
+
+  if (testUrl) {
+    chrome.storage.local.set({ lastStealthUrl: testUrl });
+  }
+
+  stealthTestBtn.disabled = true;
+  stealthStatusEl.style.color = '#9ad';
+  stealthStatusEl.textContent = `Starting stealth test (${urlsToTest.length} tab(s))... MINIMIZE CHROME NOW!`;
+
+  try {
+    if (urlsToTest.length === 1) {
+      // Single tab (existing behavior)
+      const result = await chrome.runtime.sendMessage({
+        type: 'RUN_STEALTH_TEST',
+        url: urlsToTest[0],
+        prompt
+      });
+
+      if (result && result.success) {
+        stealthStatusEl.textContent = '✅ SUCCESS: ' + result.reason;
+        stealthStatusEl.style.color = '#4caf50';
+      } else {
+        stealthStatusEl.textContent = '❌ FAILED: ' + (result ? result.reason : 'No response');
+        stealthStatusEl.style.color = '#f44336';
+      }
+    } else {
+      // Multi-tab
+      const response = await chrome.runtime.sendMessage({
+        type: 'RUN_STEALTH_MULTI_TEST',
+        urls: urlsToTest,
+        prompt
+      });
+
+      if (response && response.results && response.results.length > 0) {
+        const successCount = response.results.filter(r => r.success).length;
+        const totalCount = response.results.length;
+        let summary = `${successCount}/${totalCount} succeeded\n`;
+        for (const r of response.results) {
+          const hostname = (() => { try { return new URL(r.url).hostname; } catch(_e) { return r.url; } })();
+          summary += `${r.success ? '✅' : '❌'} ${hostname}: ${r.reason}\n`;
+        }
+        stealthStatusEl.textContent = summary;
+        stealthStatusEl.style.color = successCount === totalCount ? '#4caf50' : '#ff9800';
+      } else {
+        stealthStatusEl.textContent = '❌ No results returned';
+        stealthStatusEl.style.color = '#f44336';
+      }
+    }
+  } catch (e) {
+    stealthStatusEl.textContent = '❌ ERROR: ' + (e && e.message ? e.message : e);
+    stealthStatusEl.style.color = '#f44336';
+  }
+
+  stealthTestBtn.disabled = false;
+});
+
 function pollForResults() {
   var maxWait = 180000;
   var interval = 1000;

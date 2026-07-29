@@ -43,11 +43,29 @@ own issue tracker. So the extension:
 3. This mirrors what you were doing manually with Ctrl+1/2/3, but automated
    and near-instant per tab (a few hundred ms).
 
-### Experimental background mode
+### Stealth mode (background)
 
-An optional toggle that keeps all tabs in the background (no cycling).
-This uses the old direct approach — expect it to fail on most sites, which
-is the known limitation this mode does not work around.
+An optional toggle that runs all tabs entirely in the background using CDP-level
+input injection. Tabs are opened as `about:blank`, hardened visibility/focus
+spoofing is injected before any page JavaScript runs, then the tabs navigate to
+their real URLs. The input box is found via DOM scoring (same algorithm as
+auto-cycle's Tab navigation fallback), focused via CDP `DOM.focus` (bypasses OS
+focus requirements), and the prompt is inserted + Enter dispatched via CDP.
+Chrome can be minimized throughout — no window activation, no focus stealing.
+
+**Stealth mode includes the full rescue workflow:** two-stage verification →
+targeted re-check → Stage 3 Retry Enter, all via CDP commands (no tab cycling
+needed).
+
+Use this when you don't want Chrome to steal your focus during a run, or when
+you want to minimize the window and let tabs process in the background.
+
+### Pre-loaded retry (future optimization, not implemented)
+
+See `NOTES.md` §4 for a design idea that would layer a parallel pre-loading
+retry on top of skip-wait mode: for tabs that fail the initial fast pass, new
+tabs are opened with full page load *while* the rescue stages run on the
+originals, so the retry is instant.
 
 ### Debug log
 

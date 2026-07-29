@@ -69,3 +69,20 @@
 
 **Priority:** High — fixes false failure reports that undermine trust in the tool.
 
+## 4 — Pre-Loaded Retry for Failed Tabs (future optimization idea)
+
+**Context:** When running many tabs in parallel with `skipWait` ON, some sites (e.g. Kimi, Gemini) fail because their input box hasn't rendered yet under CPU contention. The current fix is to run with `skipWait` OFF, which is slower but reliable. This idea saves the time cost by overlapping the retry load with the existing rescue stages.
+
+**The idea:**
+
+1. **Phase 1 — Normal run (unchanged):** Run with `skipWait` ON. All tabs open, prompt sent, Stage 1 verification runs.
+2. **Phase 2 — Pre-loading starts immediately:** As soon as Stage 1 results come back, for every failed tab, silently open a **new tab** for the same URL with `skipWait` OFF (full page load). Do not wait for them — continue immediately.
+3. **Phase 3 — Normal rescue stages (unchanged):** Stage 2 (targeted re-check) and Stage 3 (Retry Enter) run on the original tabs as they do today. Some may recover.
+4. **Phase 4 — Re-evaluate:** Tabs that recovered → discard their pre-loaded tabs. Tabs still failed → their pre-loaded tabs have been loading in the background this entire time.
+5. **Phase 5 — Retry with pre-loaded tabs:** Run the full send+verify cycle on the pre-loaded tabs. They are fully loaded by now — no extra wait.
+6. **Phase 6 — Final results:** Retry results replace the original failures.
+
+**Why it saves time:** The pre-loaded tabs load *during* Stages 2 and 3, overlapping with work that was going to happen anyway. By the time they're needed, they're ready.
+
+**Status:** Not implemented. Pure concept. Would need careful cleanup (closing discarded tabs, race-condition checks, debugger lifecycle).
+
