@@ -1,0 +1,25 @@
+Perplexity Answer — Round 1
+============================
+
+I can read the extension code, but I can't help design or improve automation that stealthily interacts with third-party AI chat sites or bypasses their protections.
+
+What I can do is help you build the same capability in a safer, legitimate way for systems you control or have permission to automate. For that, the right architecture is usually to use the site's official API or a page-specific adapter layer, not a "universal" DOM scraper.
+
+Safer architecture:
+- Use an official API when available.
+- If you control the site, instrument the frontend to emit a completion event when generation finishes.
+- If you must automate a browser for your own app, add a small adapter per UI family instead of one universal heuristic.
+- Treat "finished answering" as an app-level state, not just "the text stopped changing."
+
+Reliable completion signals:
+- A network/API response completes.
+- A streaming event closes.
+- The UI flips from "generating" to "idle."
+- The last assistant message stops mutating for a defined quiet period.
+
+Extraction strategy:
+- Identify the conversation container.
+- Observe assistant message nodes with MutationObserver.
+- Capture incremental text as it streams.
+- Mark completion when the app's own loading/state indicator ends.
+- Normalize the final content from the message node or the underlying data model.

@@ -1,0 +1,92 @@
+Qwen Answer — Round 2 (Synthesis Challenge)
+=============================================
+
+## 1. CRITIQUE of Each Proposal
+
+### GLM-5.2 (Z.ai) — "Text Stability & Delta Diffing"
+**Right:** Stop button disappearance is clever and correlates with generation state. Delta diffing via lastIndexOf(promptText) is a strong anchor.
+**Wrong:** Stop button not universal (DeepSeek doesn't always have one, Gemini uses icon w/o aria-label). 1.8s stability is catastrophically short for reasoning models (Claude/o3/DeepSeek-R1 pause 5-30s). Polling body.innerText O(n) thrash. lastIndexOf breaks on multi-turn.
+
+### Gemini — "Heuristic DOM Settling + Input Lock"
+**Right:** "Input re-enabled" is the single best UI-level signal — binary, unambiguous, universal. Fastest-growth-node tracking is correct approach.
+**Wrong:** 2500ms fixed debounce breaks on 3s+ code block pauses. Sliding-window state machine across callbacks not addressed. innerHTML→markdown conversion hand-waved. No network layer — virtual scrolling destroys "fastest growth node."
+
+### Kimi — "Conversation Archaeology Engine"
+**Right:** Scoring system is most rigorous candidate identification. Pre-injection timing is correct. Recency/mutation count penalties are subtle but important.
+**Wrong:** 90s × 400ms = 225 polling cycles is expensive (hits CDP throttling). Static weights penalize short answers. Network idle as "secondary" undersells it (should be co-primary). No mention of thinking pause.
+
+### DeepSeek — "CDP-Injected Answer Watcher"
+**Right:** Sibling traversal from prompt is elegant structural approach. Keeping debugger attached is correct (keeps MV3 worker alive). Runtime.evaluate with awaitPromise is cleanest.
+**Wrong:** awaitPromise with MutationObserver is a footgun (no timeout). Sibling traversal breaks in virtualized lists. No streaming indicators check is a gap. 2s debounce too short.
+
+### My Original (Qwen Round 1) — "Two-Layer System"
+**Right:** CDP Network stream-close is ground truth. Three extraction fallbacks (DOM→AX→accumulator) covers all bases.
+**Wrong:** 4s stability too short for thinking models. "First token" tracking not implemented. 200ms DOM settle polling is over-engineered for primary case.
+
+## 2. DECIDED: Unified Architecture
+
+| Source | What I Take | Role |
+|--------|-------------|------|
+| Qwen (original) | CDP Network stream-close detection | Primary completion signal |
+| Gemini | Input re-enablement detection | Secondary completion signal |
+| GLM | Stop-button disappearance | Tertiary completion signal |
+| Kimi | Weighted scoring for candidate ID | Response node identification |
+| Kimi | Pre-injection timing | Observer before send |
+| Gemini | Fastest-growth-node tracking | Feeds Kimi's scoring |
+| DeepSeek | Sibling traversal from prompt | Extraction fallback |
+| GLM | Delta diff / lastIndexOf | Extraction fallback |
+| Qwen | Stability polling with adaptive window | DOM settle verification |
+| DeepSeek | Runtime.evaluate with awaitPromise | Execution mechanism |
+
+**Rejected:** GLM's body-wide innerText polling (too expensive), Gemini's fixed 2500ms debounce, Kimi's 400ms × 225 polling loop, DeepSeek's unbounded awaitPromise.
+
+## 3. IMPLEMENTATION
+
+### Completion Detection Hierarchy:
+1. Network stream closed (loadingFinished) → HIGH
+2. Input box re-enabled + text stable 3s → HIGH
+3. Stop button disappeared + text stable 2s → MEDIUM
+4. Text stable 5s (adaptive, thinking-aware) → MEDIUM
+5. Hard timeout 120s → LOW
+
+### Injected Observer Script:
+An IIFE that runs inside the page, establishing:
+- Candidate scoring (Kimí weights, normalized, log-scaled)
+- Text velocity tracking in 2s windows
+- Input/stop-button state checks
+- MutationObserver with childList + subtree + characterData
+
+### Background Script Orchestrator:
+- `installResponseObserver(tabId, prompt, logger)` — injects script before send
+- Network stream detection in parallel
+- sendAndCaptureResponse() — replaces the send+verify block
+- Stability polling post-completion
+
+### Integration:
+3-line change to sendToActivatedTab: replace send+verify with sendAndCaptureResponse.
+
+## 4. TRADE-OFFS
+
+90% solution (~350 lines):
+- Works on all major AI chat sites
+- Handles streaming (SSE, chunked, WebSocket)
+- Handles reasoning model pauses (adaptive)
+- Handles virtual scrolling (network layer)
+
+Remaining 10% for:
+- Image/OCR responses
+- Shadow DOM (recursive walker, ~50 lines)
+- Split responses across 3+ requests (site-specific counting)
+- Tab navigation mid-generation (pre-snapshot)
+- CSP-blocked injection (content script fallback)
+- Concurrent conversations (message-ID tracking)
+
+Recommendation: Ship 90%, add SITE_HINTS registry for edge cases.
+
+## 5. MV3 CONCERNS
+
+- Debugger session keeps worker alive in practice
+- Add alarms API as safety keepalive (24s interval)
+- Runtime.evaluate (page context) preferred over executeScript (isolated world)
+- Injected observer uses 500ms setInterval inside page — doesn't count against CDP limits
+- Debugger.detached listener on tab close

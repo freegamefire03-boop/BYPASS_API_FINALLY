@@ -1,0 +1,82 @@
+ROUND 3: FINAL SYNTHESIS — The "Signal-Driven Answer Reader" Plan
+=================================================================
+
+I received 5 architectural proposals (Qwen, Z.ai/GLM-5.2, Gemini, Kimi, DeepSeek).
+Perplexity refused. Now I have synthesized the strongest ideas into one unified plan.
+I need you to CRITIQUE this plan mercilessly, then propose your final refinements.
+
+== THE SYNTHESIZED PLAN ==
+
+### Execution Model
+- **Mechanism:** CDP Runtime.evaluate with awaitPromise:true, returning by value.
+  Consensus: DeepSeek's pattern was adopted by everyone. No chrome.scripting dependency.
+- **Lifecycle:** Attach debugger → inject observer → send prompt → await promise → extract → detach.
+
+### Observer Injection (Pre-Send)
+- **When:** Injected via CDP Runtime.evaluate BEFORE Input.insertText, while debugger is already attached.
+- **What:** A MutationObserver on document.body (childList + subtree + characterData) that builds a candidate map.
+- **Why:** Kimi correctly identified that pre-injection captures the very first mutations of the response, avoiding race conditions.
+
+### Candidate Scoring (Element Identification)
+- **Scoring factors (normalized, best candidate wins):**
+  - Text length (log-scaled, cap at 3000)
+  - Growth rate (chars/sec over last 2s window, ×40 weight)
+  - Vertical position (bottom 25-75% of viewport = +600, penalize top 100px)
+  - Width > 300px and height > 50px bonuses
+  - Recency penalty (−0.5 per ms since last mutation)
+  - Mutation count penalty (−2 per mutation, to penalize spinners/loading indicators)
+- **Fingerprint:** TagName + rounded (x,y) position. Candidate Map keyed by fingerprint.
+- **Output:** Each poll returns the highest-scored candidate's text and metadata.
+
+### Completion Detection (Multi-Signal Circuit)
+- **Signal 1 — Text Stability (PRIMARY):** Best candidate's textLength unchanged for 3 seconds.
+  Adaptive: if candidate text contains "thinking" or "reasoning", extend to 6s.
+- **Signal 2 — Input Re-enabled (HIGH):** The data-autoprompt-input element is no longer disabled/readonly.
+  Gemini identified this as the single most universal binary signal.
+- **Signal 3 — Stop Button Gone (MEDIUM):** No visible button matching /stop|halt|generate/i.
+  Z.ai's contribution. Falls back to element visibility check.
+- **Signal 4 — Hard Timeout (LOW):** 90s absolute max. Return whatever we have.
+
+  **Circuit logic:** Signal 1 AND (Signal 2 OR Signal 3) = COMPLETE.
+  If Signal 1 alone for 8s (stale but not confirmed by UI), also COMPLETE with "partial" warning.
+
+### Extraction Strategy
+- **Primary:** Best candidate's innerText with cleanup (strip buttons, SVGs, nav elements via cloneNode).
+- **Fallback 1 (if candidate score < threshold):** Delta diff — compare body.innerText before/after, use lastIndexOf(prompt) as anchor.
+- **Fallback 2 (if prompt text found in DOM):** TreeWalker to locate prompt text node → walk up to parent container → extract subsequent sibling (DeepSeek's structural approach).
+- **Output format:** { text: string, html: string, wordCount: number, confidence: 'high'|'medium'|'low' }
+
+### MV3 Service Worker Considerations
+- Debugger attachment keeps the worker alive (Chrome won't terminate while debugger is active).
+- onDetach listener attached to chrome.debugger to abort watcher gracefully if user opens DevTools.
+- Optional keepalive: `setInterval(() => chrome.runtime.getPlatformInfo(() => {}), 25000)` as fallback.
+- observer.disconnect() and clearInterval() in cleanup to prevent memory leaks.
+- Tab crash: Runtime.evaluate promise rejects → caught → cleanup runs → status = error.
+
+### Shadow DOM Handling
+- Initial implementation: IGNORE shadow roots (covers 95% of cases).
+- Future enhancement: Recursive shadowRoot querySelectorAll walker (~50 extra lines).
+- Current plan only targets light DOM.
+
+### CDP Network Layer
+- EXCLUDED from base plan. Qwen's network stream detection is the ONLY true ground-truth signal, but it requires per-site SSE/WebSocket schema knowledge. All other AIs rejected it as too fragile.
+- Reserved as optional accelerator for known domains.
+
+== YOUR TASK ==
+
+Read the synthesized plan above. Then:
+
+1. **CRITIQUE**: What is STILL wrong or missing? Be specific. Identify any contradictions, race conditions, or blind spots.
+
+2. **REFINE**: For EACH section (Execution, Observer, Scoring, Completion, Extraction, MV3, Shadow DOM, Network), tell me exactly what to change and why.
+
+3. **FINAL CODE**: Write the complete `injectResponseWatcher.js` — the string that gets passed to Runtime.evaluate. Include:
+   - The MutationObserver setup
+   - The scoring function
+   - The completion detection logic (all signals + circuit)
+   - The extraction with all fallbacks
+   - Cleanup on resolve
+
+4. **TRADE-OFF ACKNOWLEDGMENT**: For every compromise you accept, state clearly what edge case it misses.
+
+Be blunt. I want the plan torn apart so the final version is production-ready.

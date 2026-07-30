@@ -1,0 +1,68 @@
+================================================================================
+Part 2: Popup Update — Response Display
+================================================================================
+
+File: popup.js (modified)
+
+The displayResults function was updated to show response data alongside
+each result item. The change adds:
+
+  1. Response metadata line: word count · confidence · extraction method
+  2. Clickable text preview (first 120 chars), click to expand/collapse
+
+================================================================================
+CHANGE (inside displayResults function, after reasonEl):
+================================================================================
+
+    if (r.response) {
+      var respEl = document.createElement('div');
+      respEl.style.cssText = 'font-size:10px;color:#8ab;margin-top:2px;';
+      respEl.textContent = r.response.wordCount + ' words · ' + r.response.confidence + ' · method: ' + r.response.method;
+      textWrap.appendChild(respEl);
+      // Show first 100 chars of answer as preview, click to expand
+      if (r.response.text) {
+        var preview = document.createElement('div');
+        preview.style.cssText = 'font-size:10px;color:#9bc;margin-top:1px;cursor:pointer;word-break:break-all;line-height:1.3;max-height:2.6em;overflow:hidden;';
+        var short = r.response.text.substring(0, 120);
+        preview.textContent = '"' + short + (r.response.text.length > 120 ? '…' : '') + '"';
+        preview.title = 'Click to show/copy full answer';
+        preview.addEventListener('click', function() {
+          if (this._expanded) {
+            this._expanded = false;
+            this.style.maxHeight = '2.6em';
+          } else {
+            this._expanded = true;
+            this.style.maxHeight = 'none';
+            this.textContent = r.response.text;
+          }
+        });
+        textWrap.appendChild(preview);
+      }
+    }
+
+================================================================================
+HOW IT LOOKS IN THE POPUP
+================================================================================
+
+  ● chat.deepseek.com
+    text inserted via Input.dispatchKeyEvent
+    142 words · high · method: locked
+    "Here is the answer to your question about..."
+
+  ● z.ai
+    text inserted via Input.dispatchKeyEvent
+    0 words · low · method: watcher-empty
+
+  ● perplexity.ai
+    text inserted via Input.dispatchKeyEvent
+    89 words · medium · method: delta
+
+================================================================================
+NOTES
+================================================================================
+- response.wordCount: number of whitespace-delimited tokens
+- response.confidence: 'low' | 'medium' | 'high'
+- response.method: 'locked' | 'delta' | 'full-body' | 'fallback' | 'cdp-fallback' | 'error'
+- Click the preview text to see full answer; click again to collapse
+- Title attribute hints "Click to show/copy full answer"
+================================================================================

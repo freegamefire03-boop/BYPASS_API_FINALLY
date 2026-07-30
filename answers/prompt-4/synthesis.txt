@@ -1,0 +1,861 @@
+================================================================================
+ROUND 4 SYNTHESIS — FINAL IMPLEMENTATION PLAN
+================================================================================
+Sources: DeepSeek, Qwen (Qwen3.8-Max-Preview), Gemini 2.5 Pro, Z.ai (GLM-5.2)
+================================================================================
+
+TABLE OF CONTENTS
+  1. Architecture Overview
+  2. Execution Model (CDP vs executeScript)
+  3. Phase Machine (detailed)
+  4. Injection Script (injectResponseWatcher.js)
+  5. Scoring System
+  6. Candidate Locking
+  7. Completion Detection (Multi-Signal)
+  8. Thinking-Indicator Awareness
+  9. Extraction Strategy
+  10. Shadow DOM Policy
+  11. Network Passive Listener
+  12. Keepalive Strategy
+  13. Multi-Tab Coordination
+  14. Error Handling
+  15. Integration into background.js
+  16. Per-Site Confidence & Risks
+  17. Gotchas Checklist
+
+================================================================================
+1. ARCHITECTURE OVERVIEW
+================================================================================
+
+Part 2 (Answer Reader) is a function injected into each AI chat tab:
+  - It uses a Phase Machine state machine to track the response lifecycle
+  - During streaming it uses ONLY document.body.innerText.length (zero DOM traversal)
+  - At COMPLETE phase it runs Candidate Scoring to find the exact DOM container
+  - Extraction reads innerText from the LIVE node (NOT cloneNode)
+  - Optionally: passive Network listener accelerates completion on SSE sites
+
+The function is injected via CDP Runtime.evaluate (NOT chrome.scripting.executeScript)
+because:
+  - executeScript cannot return a Promise value (serializes to {}) [DeepSeek]
+  - CDP awaitPromise:true returns the resolved value directly [DeepSeek]
+  - CDP debugger attachment keeps the service worker alive [DeepSeek]
+  - All 4 AIs agree on this
+
+================================================================================
+2. EXECUTION MODEL — CDP Runtime.evaluate (FINAL DECISION)
+================================================================================
+
+DEBATE:
+  DeepSeek: "executeScript cannot return Promise — CDP Runtime.evaluate is the fix"
+  Gemini: "Must await executeScript or use messaging"
+  Qwen: "executeScript in ISOLATED world is fine"
+  Z.ai: "CDP approach works, but executeScript also works"
+
+FINAL DECISION:
+  Use CDP Runtime.evaluate with awaitPromise:true and returnByValue:true for the
+  watcher injection. Reason:
+  - The watcher function returns a Promise that resolves with the answer text
+  - CDP Runtime.evaluate handles Promise resolution natively
+  - The debugger is already attached (from Part 1 send) — no extra cost
+  - Keep debugger attached for the entire send→read→extract→cleanup lifecycle
+  - Detach ONCE at the very end [Qwen, DeepSeek]
+
+  EXCEPTION: For the lightweight polling of "is responding?" / "is input enabled?"
+  checks during the WAITING phase, executingScript can be used since those don't
+  return promises. But the main watcher MUST use CDP.
+
+CODE PATTERN:
+  ```js
+  // In background.js:
+  async function sendAndReadResponse(tabId, url, prompt, logger) {
+    // ... (existing send code) ...
+
+    // Inject the watcher via CDP (NOT executeScript)
+    const watcherCode = buildWatcherScript(prompt);
+    const result = await chrome.debugger.sendCommand(
+      { tabId },
+      'Runtime.evaluate',
+      {
+        expression: `(${watcherCode})("${escapeJs(prompt)}")`,
+        awaitPromise: true,
+        returnByValue: true,
+        timeout: 120000  // 120s max
+      }
+    );
+
+    // result.result contains the answer object:
+    // { text, html, wordCount, confidence, phase, duration }
+    return result.result;
+  }
+  ```
+
+  The watcher script is an IIFE that returns a Promise.
+
+================================================================================
+3. PHASE MACHINE
+================================================================================
+
+REFINED BY Z.ai AND Qwen:
+
+  WAITING ──→ STREAMING ──→ LOCKED ──→ COMPLETE ──→ DONE
+     │            │            │            │
+     │            │            │            └── EXTRACT (scoring + live-node read)
+     │            │            │
+     │            │            └── 3 consecutive polls with score > 600
+     │            │
+     │            └── body.innerText.length increases (first growth detected)
+     │
+     └── Pre-send snapshot taken
+
+  CRITICAL: During WAITING and STREAMING, ZERO DOM traversal.
+  Only check:
+    - document.body.innerText.length (for growth/stability)
+    - Is there a visible stop button?
+    - Is the input element re-enabled?
+
+  Only at COMPLETE → run Candidate Scoring to find the exact container.
+  [Z.ai: "Decouple Identification from Streaming" — reduces CPU 99%]
+
+TRANSITIONS:
+  WAITING:
+    - State before user sends prompt
+    - Take body.innerText pre-send snapshot
+    - Enter after verifySend succeeds
+
+  WAITING → STREAMING:
+    - Condition: body.innerText.length > preSendText.length
+    - OR: any visible text added to DOM
+    - Start stability timer
+
+  STREAMING:
+    - Monitor body.innerText.length only (poll every 500ms)
+    - Track growth rate for stability
+    - Check thinking indicator flag
+    - Check stop button visibility
+    - Check input re-enabled status
+
+  STREAMING → LOCKED:
+    - Condition: candidate score > 600 for 3 consecutive polls
+    - BUT: we don't compute score during streaming in v1
+    - ALT: once body.innerText has been stable for 1.5s AND
+            (stop button gone OR input re-enabled) → go to LOCKED
+    - Then at LOCKED we run scoring for the first time
+
+  LOCKED:
+    - Run Candidate Scoring (first full DOM traversal)
+    - If score > 600: confirm lock
+    - If score ≤ 600: keep polling with scoring every 500ms
+
+  LOCKED → COMPLETE:
+    - Condition: stability 3s (or 8s if thinking indicator) AND
+                 (stop button gone OR input re-enabled)
+    - Force bypass: 5s (or disabled if thinking indicator active)
+
+  COMPLETE:
+    - Run final extraction (live-node innerText, fallbacks)
+    - Cleanup (disconnect observer, remove sentinel)
+    - Return result
+
+================================================================================
+4. INJECTION SCRIPT — injectResponseWatcher.js [FULL CODE]
+================================================================================
+
+This is the JS string that gets passed to CDP Runtime.evaluate.
+It must be self-contained (no external deps) as it runs in the page context.
+
+```js
+function injectResponseWatcher(prompt) {
+  'use strict';
+
+  /* =====================================================================
+   * STATE
+   * ===================================================================== */
+  const preSendText = document.body.innerText;
+  const startTime = Date.now();
+  const MAX_WAIT = 120000;           // 120s absolute max
+  const POLL_INTERVAL = 500;         // ms between polls
+  const STABILITY_MS = 3000;         // 3s stability (was 2.5s) [DeepSeek]
+  const THINKING_EXTEND_MS = 8000;   // 8s when thinking indicator active [Qwen]
+  const FORCE_BYPASS_MS = 5000;      // 5s force bypass (disabled during thinking)
+  const LOCK_THRESHOLD = 3;          // consecutive polls for lock
+  const SCORE_THRESHOLD = 600;       // minimum score for locking
+  const GHOST_INPUT_CHECK = true;    // treat hidden/removed input as re-enabled
+
+  let phase = 'WAITING';
+  let lastLength = preSendText.length;
+  let stableStart = null;            // timestamp when stability period began
+  let forceBypassTimer = null;       // setTimeout ID for force bypass
+  let lockedCandidate = null;        // DOM element reference (locked)
+  let lockedScore = 0;
+  let lockStreak = 0;
+  let thinkingMode = false;          // is thinking indicator visible?
+  let stopSeen = false;             // stop button detected?
+  let inputReEnabled = false;
+
+  /* =====================================================================
+   * HELPERS
+   * ===================================================================== */
+
+  function isThinkingIndicatorVisible() {
+    const els = document.querySelectorAll(
+      '[class*="thinking" i], [class*="reasoning" i], [data-testid*="thinking" i], ' +
+      '[aria-label*="thinking" i], [class*="generating" i], [class*="loading" i]'
+    );
+    for (const el of els) {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden') {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function isStopButtonVisible() {
+    const stopText = document.body.innerText;
+    if (/stop generating|stop|halt/i.test(stopText)) {
+      // Find actual button elements, not just text
+      const btns = document.querySelectorAll(
+        'button, [role="button"], [class*="stop" i], [aria-label*="stop" i]'
+      );
+      for (const btn of btns) {
+        const txt = (btn.innerText || btn.textContent || '').toLowerCase();
+        if (/stop|halt|generate/.test(txt) && btn.offsetParent !== null) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  function isInputReEnabled() {
+    const input = document.querySelector('[data-autoprompt-sent]');
+    if (!input) return false;  // sentinel not found — might be removed from DOM
+
+    if (GHOST_INPUT_CHECK) {
+      // Check if hidden, removed, or made invisible
+      if (!input.offsetParent || getComputedStyle(input).visibility === 'hidden') {
+        return true;  // treated as ghost/hidden = input re-enabled
+      }
+    }
+
+    // Primary check: was disabled, now not
+    if (input.hasAttribute('disabled') && !input.disabled) return true;
+    if (input.hasAttribute('readonly') && !input.readOnly) return true;
+    if (input.getAttribute('aria-disabled') === 'true') return false; // still disabled
+    if (input.disabled) return false;
+
+    // If it was never disabled, check if content was cleared (site consumed it)
+    const val = input.value !== undefined ? input.value : input.innerText || '';
+    if (typeof val === 'string' && val.trim().length === 0) return true;
+
+    return false;
+  }
+
+  function scoreCandidate(el) {
+    // ONLY called during LOCKED/COMPLETE phase — not during streaming [Z.ai]
+    let score = 0;
+
+    // Text length (log-scaled, cap at 3000)
+    const textLen = (el.textContent || '').trim().length;
+    if (textLen > 0) {
+      score += Math.min(3000, Math.round(Math.log(textLen + 1) * 400));
+    }
+
+    // Block dimensions
+    const rect = el.getBoundingClientRect();
+    if (rect.width > 300) score += 300;
+    if (rect.height > 50) score += 200;
+
+    // Position: is it tall (scrollable container) or in good viewport position?
+    const vh = window.innerHeight;
+    const isTall = el.scrollHeight > vh;
+    if (isTall) {
+      score += 600;  // tall = likely conversation container [Qwen]
+    } else if (rect.top > vh * 0.2 && rect.bottom < vh * 0.95) {
+      score += 600;  // in the "good zone" of viewport
+    }
+
+    // Penalize very top-of-page (likely nav/header)
+    if (rect.top < 100) score -= 200;
+
+    // Penalize tiny elements (likely buttons, icons)
+    if (rect.width < 100 || rect.height < 30) score -= 500;
+
+    return score;
+  }
+
+  function findBestCandidate() {
+    // Run only at COMPLETE or LOCKED phase
+    let best = null, bestScore = -Infinity;
+    const candidates = document.querySelectorAll(
+      'article, [class*="message" i], [class*="response" i], ' +
+      '[class*="chat-bubble" i], [class*="conversation" i], ' +
+      '[data-message-author-role="assistant"], div[class*="group"]'
+    );
+    for (const el of candidates) {
+      const s = scoreCandidate(el);
+      if (s > bestScore && s > 100) {  // filter noise
+        bestScore = s;
+        best = el;
+      }
+    }
+    return { element: best, score: bestScore };
+  }
+
+  /* =====================================================================
+   * EXTRACTION (live node, NOT cloneNode) [Qwen]
+   * ===================================================================== */
+
+  function extractFromLiveNode(el) {
+    // Temporarily hide non-content children, read innerText, restore.
+    const hidden = [];
+    const junk = el.querySelectorAll(
+      'button, svg, nav, [role="toolbar"], [role="menu"], ' +
+      'footer, [aria-hidden="true"], [aria-label*="copy" i]'
+    );
+    for (const j of junk) {
+      hidden.push([j, j.style.display]);
+      j.style.display = 'none';
+    }
+    const text = el.innerText;  // live node → layout exists → works
+    for (const [j, orig] of hidden) {
+      j.style.display = orig;
+    }
+    return text.trim();
+  }
+
+  function extractDeltaDiff(fullText) {
+    // Fallback 1: delta diff using pre-send text as anchor
+    if (fullText.length > preSendText.length) {
+      const delta = fullText.substring(preSendText.length);
+      if (delta.trim().length > 20) return delta.trim();
+    }
+    // Fallback 2: lastIndexOf(prompt) as anchor
+    const promptIdx = fullText.lastIndexOf(prompt);
+    if (promptIdx >= 0) {
+      const after = fullText.substring(promptIdx + prompt.length);
+      if (after.trim().length > 20) return after.trim();
+    }
+    return null;
+  }
+
+  /* =====================================================================
+   * MAIN POLL LOOP
+   * ===================================================================== */
+
+  return new Promise((resolve, reject) => {
+    // Safety net: absolute max wait
+    const safetyTimer = setTimeout(() => {
+      phase = 'COMPLETE';
+      finish('safety-timeout', 'low');
+    }, MAX_WAIT);
+
+    function finish(reason, confidence) {
+      clearTimeout(safetyTimer);
+      if (forceBypassTimer) clearTimeout(forceBypassTimer);
+
+      // Run extraction
+      let text = null;
+      let method = 'none';
+      let html = null;
+      let wordCount = 0;
+
+      if (lockedCandidate) {
+        // Primary: extract from live locked candidate
+        text = extractFromLiveNode(lockedCandidate);
+        if (text && text.length > 0) {
+          method = 'locked-candidate';
+        }
+      }
+
+      if (!text || text.length === 0) {
+        // Fallback: delta diff
+        const fullText = document.body.innerText;
+        text = extractDeltaDiff(fullText);
+        if (text && text.length > 0) {
+          method = 'delta-diff';
+        }
+      }
+
+      if (!text || text.length === 0) {
+        // Fallback: last message in chat
+        text = document.body.innerText;
+        method = 'full-body';
+      }
+
+      wordCount = text ? text.split(/\s+/).filter(Boolean).length : 0;
+
+      resolve({
+        text: text || '',
+        html: html || '',
+        wordCount,
+        confidence: confidence || 'medium',
+        phase: phase,
+        reason: reason,
+        method: method,
+        duration: Date.now() - startTime
+      });
+    }
+
+    function poll() {
+      if (phase === 'COMPLETE' || phase === 'DONE') return;
+
+      const currentLength = document.body.innerText.length;
+      const elapsed = Date.now() - startTime;
+      const hasStopButton = isStopButtonVisible();
+      const hasInputReEnabled = isInputReEnabled();
+
+      // Update thinking mode each poll
+      const wasThinking = thinkingMode;
+      thinkingMode = isThinkingIndicatorVisible();
+
+      // --- WAITING → STREAMING ---
+      if (phase === 'WAITING') {
+        if (currentLength > lastLength) {
+          phase = 'STREAMING';
+          lastLength = currentLength;
+
+          // Start force bypass timer (unless in thinking mode)
+          if (!thinkingMode) {
+            forceBypassTimer = setTimeout(() => {
+              phase = 'COMPLETE';
+              finish('force-bypass-5s', 'medium');
+            }, FORCE_BYPASS_MS);
+          }
+        }
+        return;
+      }
+
+      // --- STREAMING ---
+      if (phase === 'STREAMING') {
+        const stableDuration = stableStart ? (Date.now() - stableStart) : 0;
+        const effectiveStability = thinkingMode ? THINKING_EXTEND_MS : STABILITY_MS;
+
+        if (currentLength === lastLength) {
+          if (stableStart === null) {
+            stableStart = Date.now();
+          } else {
+            const stableMs = Date.now() - stableStart;
+            // Signal check: stop button gone OR input re-enabled
+            const signalMet = hasInputReEnabled || !hasStopButton;
+
+            if (stableMs >= effectiveStability && signalMet) {
+              // STREAMING → LOCKED (first full scoring)
+              phase = 'LOCKED';
+
+              // Run candidate scoring for the first time
+              const candidate = findBestCandidate();
+              if (candidate.element && candidate.score > SCORE_THRESHOLD) {
+                lockedCandidate = candidate.element;
+                lockedScore = candidate.score;
+                lockStreak = 1;
+                // Continue polling to confirm lock...
+              } else {
+                // No good candidate yet — continue but track
+                phase = 'STREAMING';  // revert
+                stableStart = null;  // reset stability
+              }
+            }
+          }
+        } else {
+          // Text changed — reset stability
+          stableStart = null;
+          lastLength = currentLength;
+
+          // Reset force bypass if in thinking mode (it's still going)
+          // Reset bypass: already handled by the initial timer
+        }
+        return;
+      }
+
+      // --- LOCKED ---
+      if (phase === 'LOCKED') {
+        // Confirm lock with consecutive scoring
+        const candidate = findBestCandidate();
+        if (!candidate.element) {
+          // Lost the container — revert to STREAMING
+          phase = 'STREAMING';
+          stableStart = null;
+          lockStreak = 0;
+          lockedCandidate = null;
+          return;
+        }
+
+        if (candidate.score > SCORE_THRESHOLD) {
+          lockedCandidate = candidate.element;
+          lockedScore = candidate.score;
+          lockStreak++;
+        } else {
+          lockStreak = 0;
+        }
+
+        // Check completion signals
+        const effectiveStability = thinkingMode ? THINKING_EXTEND_MS : STABILITY_MS;
+        const stableDuration = stableStart ? (Date.now() - stableStart) : 0;
+        const signalMet = hasInputReEnabled || !hasStopButton;
+
+        if (lockStreak >= LOCK_THRESHOLD && stableDuration >= effectiveStability && signalMet) {
+          phase = 'COMPLETE';
+          finish('normal-completion', 'high');
+          return;
+        }
+
+        // Force bypass even during LOCKED (but not during thinking)
+        if (!thinkingMode && (Date.now() - startTime) > MAX_WAIT) {
+          phase = 'COMPLETE';
+          finish('max-wait-reached', 'low');
+          return;
+        }
+      }
+    }
+
+    // Start polling
+    const intervalId = setInterval(poll, POLL_INTERVAL);
+
+    // Override finish to also clear interval
+    const originalFinish = finish;
+    finish = function(reason, confidence) {
+      clearInterval(intervalId);
+      clearTimeout(safetyTimer);
+      if (forceBypassTimer) clearTimeout(forceBypassTimer);
+      originalFinish(reason, confidence);
+    };
+  });
+}
+```
+
+================================================================================
+5. SCORING SYSTEM
+================================================================================
+
+DESIGN DECISIONS:
+
+  1. Scoring runs ONLY during LOCKED/COMPLETE phase [Z.ai — CPU nuke prevention]
+     NEVER during WAITING or STREAMING.
+
+  2. During WAITING/STREAMING, use document.body.innerText.length ONLY.
+     [Z.ai: 99% CPU reduction, Qwen: use textContent not innerText for polling]
+
+  3. Score components:
+     - Text length: log-scaled, cap 3000 [DeepSeek, Qwen — text is natural penalty]
+     - Width > 300px: +300
+     - Height > 50px: +200
+     - Tall element (scrollHeight > viewport): +600 [Qwen — fixes auto-scroll issue]
+     - Good viewport zone (top 20%-95%): +600
+     - Top 100px penalty: -200
+     - Tiny penalities: -500 for <100px wide or <30px tall
+     - Minimum threshold: score > 100 to be considered (filters noise)
+
+  4. Candidate selectors (querySelectorAll):
+     article, [class*="message"], [class*="response"], [class*="chat-bubble"],
+     [class*="conversation"], [data-message-author-role="assistant"],
+     div[class*="group"]
+
+  5. Penalties were REMOVED from the plan (mutation count, recency) because:
+     "killing the penalties was the right call — text length is a natural penalty"
+     [Qwen, DeepSeek, Z.ai consensus]
+
+================================================================================
+6. CANDIDATE LOCKING
+================================================================================
+
+  - 3 consecutive polls with score > 600 = LOCKED [consensus]
+  - Once locked, the element reference is stored (lockedCandidate)
+  - If scoring fails in subsequent polls, revert to STREAMING
+  - Threshold of 600 prevents locking onto static nav/sidebar text
+  - BUT: oscillation near 600 can delay lock — non-fatal (extraction still works)
+
+  Edge case from DeepSeek:
+    If score oscillates near 600, extend lock window to 5 consecutive polls
+    instead of resetting to 0 on each dip.
+
+================================================================================
+7. COMPLETION DETECTION (Multi-Signal)
+================================================================================
+
+PRIMARY: Text Stability
+  - body.innerText.length unchanged for 3s (or 8s if thinking indicator active)
+  - Adaptive: thinking indicator extends to 8s [Qwen, Z.ai]
+
+SIGNAL 2 — Input Re-enabled (HIGH)
+  - The data-autoprompt-sent element is no longer disabled/readonly
+  - Also check: element removed from DOM, visibility:hidden, display:none
+  - [DeepSeek: ghost input check — treat hidden as re-enabled]
+
+SIGNAL 3 — Stop Button Gone (MEDIUM)
+  - No visible button matching /stop|halt|generate/i
+  - Must check offsetParent !== null (actually visible) [Gemini]
+  - AND spatially near the active area [Gemini]
+
+CIRCUIT LOGIC:
+  - STREAMING: stability (3s/8s) AND (Signal 2 OR Signal 3) → LOCKED
+  - LOCKED: lockStreak >= 3 AND stability AND (Signal 2 OR Signal 3) → COMPLETE
+  - Force bypass: 5s timer (disabled during thinking indicator) → COMPLETE (low confidence)
+  - Absolute max: 120s → COMPLETE (low confidence)
+
+================================================================================
+8. THINKING-INDICATOR AWARENESS
+================================================================================
+
+ADDED BACK from Round 3 per Qwen's insistence:
+
+  function isThinkingIndicatorVisible()
+    - querySelectorAll for: [class*="thinking"], [class*="reasoning"],
+      [data-testid*="thinking"], [aria-label*="thinking"], [class*="generating"],
+      [class*="loading"]
+    - Must have visible bounding box (width > 0, height > 0)
+    - Must not be visibility:hidden
+
+  When thinking indicator is visible:
+    - Stability extends from 3s → 8s [Qwen, Z.ai]
+    - 5s force bypass is DISABLED [Z.ai]
+    - Timer restarts only when thinking indicator disappears
+
+  Z.ai also suggested: check page text for /thinking|reasoning|analyzing/i as
+  a secondary signal even if no visible indicator element.
+
+================================================================================
+9. EXTRACTION STRATEGY
+================================================================================
+
+PRIMARY: Live-node innerText with temporary junk hiding [Qwen]
+
+  function extractFromLiveNode(el)
+    1. querySelectorAll el for: button, svg, nav, [role="toolbar"],
+       [role="menu"], footer, [aria-hidden="true"], [aria-label*="copy"]
+    2. For each, save current display + set to 'none'
+    3. Read el.innerText (live node → layout exists → works!)
+    4. Restore all display values
+    5. Return text.trim()
+
+  Why NOT cloneNode:
+    - innerText is layout-aware [Qwen]
+    - Detached nodes have no layout → innerText returns "" [Qwen certainty]
+    - cloneNode(true) also has memory leak on large React trees [Z.ai]
+
+FALLBACK 1: Delta Diff
+  - fullText.substring(preSendText.length)
+  - If that fails: fullText.lastIndexOf(prompt) as anchor, take substring after
+
+FALLBACK 2: Full body.innerText
+  - Last resort — return everything
+
+OUTPUT:
+  { text, html, wordCount, confidence, phase, reason, method, duration }
+
+================================================================================
+10. SHADOW DOM POLICY
+================================================================================
+
+FINAL DECISION: KILL SHADOW DOM FOR v1 [Gemini, Z.ai]
+
+REASONING:
+  - Gemini: "MutationObserver does not cross shadow boundaries. Dynamic shadow
+    roots created during streaming will be completely missed."
+  - Z.ai: "Recursive shadow DOM walk on every poll = CPU nuke. Freezes main
+    thread on ChatGPT and Claude."
+  - DeepSeek: "Rescan for new shadow roots every 2s with setInterval"
+  - Qwen: "Covers existing shadow roots. Misses dynamically-created ones.
+    Acceptable for v1."
+
+  Consensus: Light DOM only = 95% coverage. The 5% loss (some Gemini/specialized
+  sites using deep Shadow DOM for individual messages) is acceptable for v1.
+
+  Future v2: Add periodic shadow root rescan (every 2s setInterval) that hooks
+  new MutationObserver instances into dynamically created shadow roots.
+  [DeepSeek's suggestion]
+
+================================================================================
+11. NETWORK PASSIVE LISTENER (Optional Accelerator)
+================================================================================
+
+Qwen's "Change ONE thing" recommendation:
+
+  Add 15 lines of passive network monitoring via the already-attached debugger:
+
+  ```js
+  chrome.debugger.sendCommand({ tabId }, 'Network.enable', { maxPostDataSize: 0 });
+
+  let activeStreamId = null;
+  let streamClosed = false;
+
+  chrome.debugger.onEvent.addListener((src, method, params) => {
+    if (src.tabId !== tabId) return;
+    if (method === 'Network.responseReceived') {
+      const mime = params.response.mimeType || '';
+      if (mime.includes('event-stream') || mime.includes('ndjson')) {
+        activeStreamId = params.requestId;
+      }
+    }
+    if (method === 'Network.loadingFinished' && params.requestId === activeStreamId) {
+      streamClosed = true;
+    }
+  });
+  ```
+
+  When streamClosed is true:
+    - Stability requirement drops from 3s to 800ms (just enough for final DOM paint)
+    - Eliminates false "still thinking" detection since stream doesn't close during pauses
+
+  This is OPTIONAL for v1. The heuristics work without it.
+  Per-site schema knowledge is NOT required — just MIME type matching.
+
+================================================================================
+12. KEEPALIVE STRATEGY
+================================================================================
+
+Z.ai CRITICAL GOTCHA:
+  "chrome.alarms.create() has a minimum interval of 1 MINUTE in production MV3.
+  You cannot set a 24-second alarm. Chrome will clamp it to 60s."
+
+  FIX:
+    Use chrome.runtime.connect() with a port that pings every 20s.
+    The port message resets the service worker's 30s timeout.
+
+  ```js
+  // When starting the watcher:
+  const port = chrome.runtime.connect({ name: 'answer-reader-keepalive' });
+  const keepaliveTimer = setInterval(() => port.postMessage({ ping: true }), 20000);
+
+  // When cleanup finishes:
+  clearInterval(keepaliveTimer);
+  port.disconnect();
+  ```
+
+  CDP debugger attachment ALSO keeps the worker alive [DeepSeek], but the
+  port provides a backup guarantee.
+
+================================================================================
+13. MULTI-TAB COORDINATION
+================================================================================
+
+  With 6 tabs in parallel, each polling every 500ms:
+    - ~12 executeScript/CDP calls/sec
+    - Chrome handles this fine [Qwen]
+    - BUT: stagger poll intervals to reduce synchronized load
+
+  Qwen's pattern:
+    ```js
+    const states = await Promise.all(
+      activeTabs.map(t => pollTab(t.tabId).catch(() => null))
+    );
+    ```
+
+  Each tab gets its own injected watcher instance (via CDP Runtime.evaluate).
+  The watcher is self-contained per tab.
+
+================================================================================
+14. ERROR HANDLING
+================================================================================
+
+  executeScript restricted page guard [Qwen]:
+    If tab is on about:blank (stealth mode) or chrome://, executeScript throws:
+    "Cannot access a chrome:// URL" or "Cannot access a page with restricted URL"
+    → Catch, skip poll, continue
+
+  Context invalidation [Gemini]:
+    If user navigates or site does hard route push → "Extension context
+    invalidated" error → wrap in try/catch → treat as hard tab failure
+
+  CDP Runtime.evaluate timeout [DeepSeek]:
+    Has a timeout parameter. If answer takes > 120s, promise rejects.
+    → Catch, extract whatever locked candidate holds, return with low confidence.
+
+  Promise rejection in watcher:
+    If the injected function throws, the CDP promise rejects.
+    → background.js catches, logs error, marks tab as 'error'.
+
+================================================================================
+15. INTEGRATION INTO background.js
+================================================================================
+
+  The existing flow (simplified):
+
+  CURRENT (Part 1 only):
+    sendToActivatedTab / stealthSendToTab
+      → attach debugger → find input → send text + Enter → verifySend
+      → detach debugger → return result
+
+  NEW (Part 1 + Part 2 integrated):
+    sendAndReadResponse(tabId, url, prompt, logger)
+      → attach debugger
+      → set data-autoprompt-sent sentinel (BEFORE send)
+      → send text + Enter
+      → verifySend
+      → inject response watcher via CDP Runtime.evaluate (KEEP debugger)
+      → await Promise from watcher (returns answer text)
+      → detach debugger
+      → return { url, tabId, status, response, ... }
+
+  Critical: Do NOT detach debugger between send and read [Qwen, DeepSeek].
+  The debugger stays attached for the entire lifecycle.
+
+  The watcher function string should be built once (at module level) and reused.
+  Use a helper to escape the prompt for embedding in the JS expression.
+
+```js
+function escapeJs(str) {
+  return str
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t');
+}
+```
+
+================================================================================
+16. PER-SITE CONFIDENCE & RISKS
+================================================================================
+
+All estimates from DeepSeek (with CDP fix applied):
+
+  ChatGPT (both UIs):    95% — stable container, clear streaming, stop button
+  Claude:                85% — heavily nested UI, no input disabling
+  Gemini:                80% — shadow DOM risk (mitigated by Light DOM v1 decision)
+  DeepSeek:              90% — simple DOM, clear stop button
+  Perplexity:            90% — same as DeepSeek
+  Poe/others:            85-90%
+  Bizarre SPAs:          ~70% — full re-render on every token
+
+Z.ai confidence: 92% across all sites, 8% risk from React DOM virtualization
+  (long conversations lose top messages from DOM → prompt anchor vanishes)
+
+Gemini confidence: 85% (goes to 98% with fixes applied)
+
+Qwen confidence: 84% overall, 70→88% for completion detection with thinking fix
+
+OVERALL: ~90% across 6 sites first run. 1 site likely needs a 3-line hint.
+
+================================================================================
+17. GOTCHAS CHECKLIST
+================================================================================
+
+☐ [DeepSeek] executeScript cannot return Promise → use CDP Runtime.evaluate
+☐ [DeepSeek] Set data-autoprompt-sent immediately after send, not before
+☐ [DeepSeek] Ghost input check: treat hidden/removed input as re-enabled
+☐ [DeepSeek] cloneNode stripping: use aria-label="copy" not [class*="action"]
+☐ [DeepSeek] CDP Promise timeout: catch, return low-confidence partial text
+
+☐ [Qwen] cloneNode + innerText = empty string → use live node extraction
+☐ [Qwen] Add thinking-indicator awareness → extend stability to 8s
+☐ [Qwen] Optional: 15-line passive network listener (MIME-based, no schema)
+☐ [Qwen] Use ISOLATED world for executeScript (stealth-safe by default)
+☐ [Qwen] Guard about:blank poll with try/catch
+☐ [Qwen] Viewport scoring: check scrollHeight > window.innerHeight for tall boxes
+☐ [Qwen] Don't detach debugger between send and read
+☐ [Qwen] Use textContent for scoring (no layout), innerText only at extraction
+
+☐ [Gemini] Stop button false positive: check offsetParent !== null
+☐ [Gemini] Context invalidation: try/catch around executeScript
+☐ [Gemini] ISOLATED world is correct, use default
+
+☐ [Z.ai] Decouple identification from streaming (zero DOM traversal during streaming)
+☐ [Z.ai] cloneNode(true) memory leak → strip svg, button, script
+☐ [Z.ai] Thinking pause: double stability, disable 5s force bypass
+☐ [Z.ai] chrome.alarms minimum is 60s → use chrome.runtime.connect() port ping
+☐ [Z.ai] Use body.innerText.length (not innerText) for streaming poll
+
+================================================================================
+END OF SYNTHESIS
+================================================================================

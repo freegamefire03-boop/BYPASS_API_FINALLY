@@ -1,0 +1,2076 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e4]:
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - img "logo" [ref=e9]
+        - button "Toggle sidebar" [ref=e10] [cursor=pointer]
+      - generic [ref=e14]:
+        - button "New Chat" [ref=e15] [cursor=pointer]
+        - textbox "Search Chats" [ref=e27] [cursor=pointer]
+      - generic [ref=e28]:
+        - generic [ref=e29]:
+          - generic [ref=e30] [cursor=pointer]: Community
+          - generic [ref=e35] [cursor=pointer]: Coder
+        - generic [ref=e41]:
+          - generic [ref=e42] [cursor=pointer]: Projects
+          - generic [ref=e49]:
+            - generic [ref=e50]: New Project
+            - generic [ref=e58]: GERMAN APP
+        - generic [ref=e69]:
+          - generic [ref=e70]: All chats
+          - generic [ref=e81]:
+            - generic [ref=e82]: Today
+            - generic [ref=e83]:
+              - generic "chat-item" [ref=e84]: Universal AI Response Extraction
+              - button "Chat Menu" [ref=e88] [cursor=pointer]
+            - generic [ref=e92]: Previous 7 days
+            - generic "chat-item" [ref=e94]: Virtual Assistant Introduction
+            - generic "chat-item" [ref=e98]: AI Explained in One Page
+            - generic "chat-item" [ref=e102]: Friendly Greeting Exchange
+            - generic "chat-item" [ref=e106]: Test Conversation
+      - button "User profile Bahae eddine Es-sadki" [ref=e113] [cursor=pointer]:
+        - generic [ref=e114]:
+          - img "User profile" [ref=e116]
+          - generic [ref=e117]: Bahae eddine Es-sadki
+    - button "?" [ref=e3614] [cursor=pointer]
+    - button "Show shortcuts"
+    - generic [ref=e123]:
+      - banner [ref=e124]:
+        - generic [ref=e125]:
+          - button "Select Model" [ref=e129] [cursor=pointer]:
+            - generic [ref=e130]: Qwen3.8-Max-Preview
+          - img "More" [ref=e137] [cursor=pointer]
+      - main [ref=e140]:
+        - generic [ref=e145]:
+          - generic [ref=e147]:
+            - generic [ref=e154]:
+              - paragraph [ref=e155]: "Subject: 🚨 I need your expertise — my extension sends prompts but I can't read the AI's answers Hey team, I'm building a Chrome extension that automates conversations with AI chat sites. Here's where I'm at: Part 1 — Sending prompts ✅ WORKING The extension can open any AI chat site in a hidden tab, type a prompt, and hit send. It works across 6+ different sites. I'm using Chrome's debugger API to inject the text into the page. I have a stealth mode that avoids detection. Part 2 — Reading the answers ❌ I HAVE NO IDEA I need the extension to wait for the AI to finish typing its response, then grab the full answer text. But I don't want to write custom code for each website — I need one universal approach that works everywhere. What I'm giving you: Attached is my complete codebase (1397 lines). It's the full source — background.js, popup.js, popup.html, manifest.json. You can see exactly how Part 1 works. What I need from you: Read the codebase. Understand what this extension does. Then tell me: - How would YOU build Part 2? - What's the best strategy to detect when an AI finishes answering? - How do I extract the text reliably across different chat sites? - What pitfalls should I watch out for? Don't hold back. Give me your honest architectural recommendation. I want the best idea, not the easiest one. === MY FULL CODEBASE === # File Tree ``` ├── .gitignore ├── background.js ├── manifest.json ├── popup.html └── popup.js ``` # Source Files ## `.gitignore` ``` .env .env.* *.key *.pem *token* *secret* node_modules/ .DS_Store *.log ``` ## `background.js` ```js // ============================================================================ // AI Chat Auto-Prompt — background service worker // // THE CORE PROBLEM THIS FILE SOLVES: // Chrome only routes real, trusted input (including debugger-injected // keystrokes via chrome.debugger's Input.dispatchKeyEvent) to the ACTIVE // tab of a window. A background/inactive tab simply never receives it — // this isn't a bug, it's how Chrome's input pipeline works, confirmed both // by Chromium's own issue tracker and by real testing. So there is no way // to deliver a genuinely trusted Ctrl+V/Enter to a tab that isn't the // frontmost tab at that exact moment. // // THE FIX (default behavior): open every URL in parallel first — this part // really is simultaneous, since loading a background tab is NOT blocked, // only INPUT delivery is. Then, once every tab has had its chance to load, // the extension itself rapidly cycles which tab is \"active\" — the exact // same thing you were doing by hand with Ctrl+1/2/3 — briefly bringing each // tab to the front just long enough to paste and send, then moving to the // next one. No manual navigation needed; it's automated and near-instant // per tab (a few hundred ms). // // INPUT DETECTION (auto-cycle): Primary method polls document.activeElement // for up to 8s. If the site doesn't auto-focus its input, a fallback kicks // in: the extension simulates Tab keypresses (via debugger, trusted events, // page-only — the omnibox is never reached) to walk through all focusable // elements, collects text-input candidates, scores them (textarea > // contenteditable > input, large > small, bottom-of-page > top-of-page), // and focuses the best match. If both methods fail, the tab is aborted with // a clear error (no blind firing). // // TEXT INSERTION: The prompt is injected directly into each tab's focused // input via CDP's Input.insertText — no system clipboard is involved. // This means the user can freely copy/paste on their PC while the // extension runs without corrupting the prompt being sent. // // VERIFICATION: Two-stage post-send check. Stage 1 polls the tab URL for // 1.5s — if it changes, the prompt was delivered. If Stage 1 fails, Stage 2 // polls the exact input element we wrote into (found via a temporary // data-autoprompt-input attribute) for 1.5s — if its content is cleared, // the site consumed the prompt. If both stages fail, the tab is flagged // as a definitive failure (not \"uncertain\"). // // TARGETED RE-CHECK: If initial verification fails on a tab that received // the prompt, the extension does not immediately give up. After all tabs // are processed, it re-activates only the failed tabs, waits for the page // to settle, and re-runs the same two-stage verification. This fixes false // failures caused by sites pausing or delaying DOM updates while backgrounded. // // RETRY ENTER: If the targeted re-check still fails and the marked input // box still contains the prompt text, the extension re-focuses that exact // input box, re-attaches the debugger, and sends one more trusted Enter // keystroke. This is the final rescue step. If it fails, the tab remains // flagged as failed. // // STEALTH MODE: The \"experimentalBackground\" toggle switches to a fully // background \"stealth\" mode. Each tab is opened as about:blank, visibility // and focus are spoofed at the protocol level BEFORE any page JS runs, then // the tab navigates to the real URL. The input is located with a direct DOM // search (no OS focus needed), focused via CDP DOM.focus, and the prompt is // injected via Input.insertText + Enter. All tabs run in parallel and the // whole flow works while Chrome is minimized, with no focus stealing. // ============================================================================ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => { if (msg.type === 'RUN_AUTOMATION') { runAutomation(msg.urls, msg.prompt, { skipWait: !!msg.skipWait, experimentalBackground: !!msg.experimentalBackground }).catch((err) => console.error('[AI Chat Auto-Prompt] automation failed:', err)); sendResponse({ ok: true }); return true; } return false; }); function delay(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); } // ---- Logger (console only) ------------------------------------------------- function makeLogger() { function log(scope, message, data) { console.log(`[AI Chat Auto-Prompt] [${scope}] ${message}`, data !== undefined ? data : ''); } return { log }; } // ---- Tab load / focus detection -------------------------------------------- function waitForTabComplete(tabId, timeoutMs = 30000) { return new Promise((resolve) => { let finished = false; const finish = () => { if (finished) return; finished = true; clearTimeout(timer); chrome.tabs.onUpdated.removeListener(listener); resolve(); }; const timer = setTimeout(finish, timeoutMs); function listener(updatedTabId, changeInfo) { if (updatedTabId === tabId && changeInfo.status === 'complete') finish(); } chrome.tabs.onUpdated.addListener(listener); chrome.tabs.get(tabId, (tab) => { if (tab && tab.status === 'complete') finish(); }); }); } async function isInputFocused(tabId) { try { const results = await chrome.scripting.executeScript({ target: { tabId }, func: () => { const el = document.activeElement; if (!el) return false; const tag = el.tagName ? el.tagName.toLowerCase() : ''; return tag === 'textarea' || tag === 'input' || !!el.isContentEditable; } }); return !!(results && results[0] && results[0].result); } catch (e) { return false; } } async function waitForFocusedInput(tabId, maxWaitMs = 15000, stepMs = 350) { const start = Date.now(); while (Date.now() - start < maxWaitMs) { if (await isInputFocused(tabId)) return true; await delay(stepMs); } return false; } // ---- Input element marking (for post-send verification) --------------------- async function markInputElement(tabId) { try { await chrome.scripting.executeScript({ target: { tabId }, func: () => { const el = document.activeElement; if (el) el.setAttribute('data-autoprompt-input', 'true'); } }); } catch (e) {} } async function getMarkedInputContent(tabId) { try { const results = await chrome.scripting.executeScript({ target: { tabId }, func: () => { const el = document.querySelector('[data-autoprompt-input=\"true\"]'); if (!el) return null; if (el.value !== undefined) return el.value; return el.innerText || el.textContent || ''; } }); return results && results[0] ? results[0].result : null; } catch (e) { return null; } } async function cleanupInputElementMark(tabId) { try { await chrome.scripting.executeScript({ target: { tabId }, func: () => { const el = document.querySelector('[data-autoprompt-input=\"true\"]'); if (el) el.removeAttribute('data-autoprompt-input'); } }); } catch (e) {} } async function focusMarkedInput(tabId) { try { const results = await chrome.scripting.executeScript({ target: { tabId }, func: () => { const el = document.querySelector('[data-autoprompt-input=\"true\"]'); if (!el) return false; el.focus(); return true; } }); return !!(results && results[0] && results[0].result); } catch (e) { return false; } } // ---- Tab-navigation fallback helpers ---------------------------------------- function fingerprintsMatch(a, b) { return ( a.tag === b.tag && a.id === b.id && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h ); } function scoreCandidate(data) { let score = 0; if (data.tag === 'textarea') score += 100; if (data.editable) score += 80; if (data.tag === 'input') score += 40; if (data.w > 400) score += 30; if (data.h > 60) score += 20; if (data.h > 200) score += 10; const ph = (data.placeholder || '').toLowerCase(); if (/message|prompt|ask|chat|type/.test(ph)) score += 15; if (data.y > data.viewportH * 0.5) score += 10; if (/search/.test(ph) && data.tag === 'input') score -= 20; return score; } async function findInputViaTabNavigation(tabId, logger) { const MAX_TABS = 50; let firstFingerprint = null; const candidates = []; for (let i = 0; i < MAX_TABS; i++) { await dispatchKey(tabId, { type: 'rawKeyDown', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9, code: 'T"
+              - button "Expand" [ref=e156] [cursor=pointer]
+            - generic [ref=e165]:
+              - generic [ref=e166]:
+                - generic [ref=e167]: Thinking completed
+                - generic [ref=e183]:
+                  - 'heading "Part 2 Architecture: Universal AI Response Extraction" [level=1] [ref=e184]'
+                  - generic [ref=e185]:
+                    - text: "I've read your entire codebase. Your Part 1 is genuinely well-engineered — the two-stage verification, the Tab-navigation fallback with scoring, the stealth mode with pre-navigation spoofing. You clearly understand Chrome's input pipeline deeply. Part 2 is a fundamentally different problem though: Part 1 is about"
+                    - emphasis [ref=e186]: injecting
+                    - text: into a page (you control the action), while Part 2 is about
+                    - emphasis [ref=e187]: observing
+                    - text: a page (you don't control the timing or structure). Here's my honest recommendation.
+                  - separator [ref=e189]
+                  - 'heading "The Core Insight: Don''t Scrape — Intercept" [level=2] [ref=e190]'
+                  - generic [ref=e191]: "The \"obvious\" approach is: wait for the AI to finish, then query the DOM for the response text. This is fragile. Every site structures its message bubbles differently, class names change weekly, and streaming means the DOM is in constant flux."
+                  - strong [ref=e193]: "The best approach is a two-layer system:"
+                  - generic [ref=e194]:
+                    - img "Download" [ref=e198] [cursor=pointer]
+                    - table [ref=e202]:
+                      - rowgroup [ref=e203]:
+                        - row [ref=e204]:
+                          - columnheader "Layer" [ref=e205]
+                          - columnheader "Purpose" [ref=e207]
+                          - columnheader "Reliability" [ref=e209]
+                      - rowgroup [ref=e211]:
+                        - row [ref=e212]:
+                          - cell [ref=e213]:
+                            - strong [ref=e215]: "Layer 1: Network-level"
+                          - cell [ref=e216]:
+                            - generic [ref=e217]:
+                              - text: Detect
+                              - emphasis [ref=e218]: when
+                              - text: the response is complete
+                          - cell "★★★★★" [ref=e219]
+                        - row [ref=e221]:
+                          - cell [ref=e222]:
+                            - strong [ref=e224]: "Layer 2: DOM-level"
+                          - cell [ref=e225]:
+                            - generic [ref=e226]:
+                              - text: Extract
+                              - emphasis [ref=e227]: what
+                              - text: the response says
+                          - cell "★★★★☆" [ref=e228]
+                  - generic [ref=e230]: Layer 1 tells you "done." Layer 2 gives you the text. They're decoupled.
+                  - separator [ref=e232]
+                  - 'heading "Layer 1: Detecting Completion via CDP Network" [level=2] [ref=e233]'
+                  - generic [ref=e234]: "You're already attaching the debugger. Use it. AI chat sites universally use one of two streaming patterns:"
+                  - list [ref=e235]:
+                    - listitem [ref=e236]:
+                      - strong [ref=e237]: "Server-Sent Events (SSE):"
+                      - code [ref=e238] [cursor=pointer]: "Content-Type: text/event-stream"
+                      - text: (ChatGPT, Claude, Gemini)
+                    - listitem [ref=e239]:
+                      - strong [ref=e240]: "Chunked fetch/XHR:"
+                      - code [ref=e241] [cursor=pointer]: "Transfer-Encoding: chunked"
+                      - text: with incremental JSON (DeepSeek, some others)
+                  - generic [ref=e242]:
+                    - text: In both cases,
+                    - strong [ref=e243]: the stream closing IS the completion signal.
+                    - text: No heuristics. No "wait 3 seconds and hope." The TCP connection ending is ground truth.
+                  - heading "Implementation" [level=3] [ref=e244]
+                  - generic [ref=e245]:
+                    - generic [ref=e246]: js
+                    - code [ref=e262]:
+                      - generic [ref=e263]:
+                        - textbox "Editor content" [ref=e264]
+                        - textbox [ref=e265]: "ROUND 4: FINAL REFINED PLAN — Simplified Signal-Driven Answer Reader I read all 4 of your Round 3 critiques. Here is the final plan I intend to implement. Need your FINAL review. === KEY DECISIONS === 1. EXECUTION: chrome.scripting.executeScript (not CDP). Fire-and-forget pattern. 2. PHASE MACHINE: WAITING→STREAMING→LOCKED→COMPLETE. 3. SCORING (killed penalties): Text length + block + viewport. 4. CANDIDATE LOCKING: 3 polls with score > 600. 5. COMPLETION: Stability 2.5s + input/stop signals. 5s force bypass. 6. EXTRACTION: Locked candidate cloneNode/innerText. Fallbacks. 7. SHADOW DOM: Recursive walk at injection. 8. KEEPALIVE: chrome.alarms 24s. 9. NETWORK: Excluded. === YOUR TASK === 1. Any remaining fatal flaws? 2. Change ONE thing? 3. Confidence 0-100%? 4. Last-minute gotchas? Be blunt. Final round before code."
+                        - generic [ref=e267]:
+                          - generic [ref=e268]: "93"
+                          - generic [ref=e270]: "94"
+                          - generic [ref=e272]: "95"
+                          - generic [ref=e274]: "96"
+                        - generic [ref=e281]:
+                          - generic [ref=e282]: const originalFinish = finish;
+                          - generic [ref=e284]: "// Note: in production, also removeEventListener in finish()"
+                          - generic [ref=e286]: "});"
+                          - generic [ref=e288]: "}"
+                        - generic [ref=e291]:
+                          - generic [ref=e3616]:
+                            - generic [ref=e3617]: "1"
+                            - generic [ref=e3618]: 
+                          - generic [ref=e295]:
+                            - list:
+                              - listitem [ref=e3619]:
+                                - generic [ref=e3620]: "async function waitForResponseCompletion(tabId, logger, timeoutMs = 120000) {"
+                  - heading "Why this is superior to DOM observation for \"done\" detection:" [level=3] [ref=e300]
+                  - list [ref=e301]:
+                    - listitem [ref=e302]:
+                      - strong [ref=e303]: Zero false positives from UI animations.
+                      - text: A typing indicator pulsing doesn't fool you.
+                    - listitem [ref=e304]:
+                      - strong [ref=e305]: Zero false negatives from lazy rendering.
+                      - text: Some sites buffer DOM updates; the network doesn't lie.
+                    - listitem [ref=e306]:
+                      - strong [ref=e307]: Works regardless of DOM structure.
+                      - text: You never need to know if it's a
+                      - code [ref=e308] [cursor=pointer]: <div class="markdown">
+                      - text: or a
+                      - code [ref=e309] [cursor=pointer]: <span data-message-id>
+                      - text: .
+                    - listitem [ref=e310]:
+                      - strong [ref=e311]: You get it for free
+                      - text: — you already have the debugger attached.
+                  - separator [ref=e313]
+                  - 'heading "Layer 2: Extracting the Text (DOM Heuristics)" [level=2] [ref=e314]'
+                  - generic [ref=e315]: "Once you know the response is done, you extract text. Here's the universal strategy, ordered by reliability:"
+                  - 'heading "Strategy A: \"Last message in the conversation container\"" [level=3] [ref=e316]'
+                  - generic [ref=e317]: "Almost every chat UI follows this pattern:"
+                  - code [ref=e334]:
+                    - generic [ref=e335]:
+                      - textbox "Editor content"
+                      - textbox [ref=e336]
+                      - generic [ref=e338]:
+                        - generic [ref=e339]:
+                          - generic [ref=e341] [cursor=pointer]: 
+                          - generic [ref=e342]: "1"
+                        - generic [ref=e343]: "2"
+                        - generic [ref=e345]: "3"
+                        - generic [ref=e347]: "4"
+                        - generic [ref=e349]: "5"
+                      - generic [ref=e358]:
+                        - generic [ref=e359]: "[scrollable container]"
+                        - generic [ref=e361]: "[message: user]"
+                        - generic [ref=e363]: "[message: assistant] ← you want this one"
+                        - generic [ref=e365]: "[message: user]"
+                        - generic [ref=e367]: "[message: assistant] ← specifically the LAST one"
+                  - generic [ref=e369]:
+                    - generic [ref=e370]: js
+                    - code [ref=e386]:
+                      - generic [ref=e387]:
+                        - textbox "Editor content" [ref=e388]
+                        - textbox [ref=e389]
+                        - generic [ref=e391]:
+                          - generic [ref=e392]: "104"
+                          - generic [ref=e394]: "105"
+                          - generic [ref=e396]: "106"
+                          - generic [ref=e398]: "107"
+                        - generic [ref=e405]:
+                          - generic [ref=e406]: "});"
+                          - generic [ref=e409]: "return results && results[0] ? results[0].result : { success: false, error: 'executeScript failed' };"
+                          - generic [ref=e411]: "}"
+                        - generic [ref=e414]:
+                          - generic [ref=e3623]:
+                            - generic [ref=e3624]: "1"
+                            - generic [ref=e3625]: 
+                          - generic [ref=e418]:
+                            - list:
+                              - listitem [ref=e3626]:
+                                - generic [ref=e3627]: "async function extractLastResponse(tabId, logger) {"
+                  - 'heading "Strategy B: Accessibility Tree (the nuclear option)" [level=3] [ref=e423]'
+                  - generic [ref=e424]: "If DOM scraping fails, CDP gives you the full accessibility tree, which strips away all CSS/class-name nonsense:"
+                  - generic [ref=e425]:
+                    - generic [ref=e426]: js
+                    - code [ref=e442]:
+                      - generic [ref=e443]:
+                        - textbox "Editor content"
+                        - textbox [ref=e444]
+                        - generic [ref=e446]:
+                          - generic [ref=e447]:
+                            - generic [ref=e449] [cursor=pointer]: 
+                            - generic [ref=e450]: "1"
+                          - generic [ref=e451]: "2"
+                          - generic [ref=e453]: "3"
+                          - generic [ref=e455]: "4"
+                          - generic [ref=e457]: "5"
+                          - generic [ref=e459]:
+                            - generic [ref=e460] [cursor=pointer]: 
+                            - generic [ref=e461]: "6"
+                          - generic [ref=e462]: "7"
+                          - generic [ref=e464]: "8"
+                          - generic [ref=e466]: "9"
+                          - generic [ref=e468]: "10"
+                          - generic [ref=e470]:
+                            - generic [ref=e471] [cursor=pointer]: 
+                            - generic [ref=e472]: "11"
+                          - generic [ref=e473]: "12"
+                          - generic [ref=e475]: "13"
+                          - generic [ref=e477]: "14"
+                          - generic [ref=e479]: "15"
+                          - generic [ref=e481]: "16"
+                        - generic [ref=e501]:
+                          - generic [ref=e502]: "async function extractViaAccessibilityTree(tabId, logger) {"
+                          - generic [ref=e504]: "const { nodes } = await chrome.debugger.sendCommand({ tabId }, 'Accessibility.getFullAXTree');"
+                          - generic [ref=e507]: // Find the last "article" or "group" role node with substantial text
+                          - generic [ref=e509]: // AI responses often map to role="article" or role="group" in the AX tree
+                          - generic [ref=e511]: const textNodes = nodes.filter(n =>
+                          - generic [ref=e513]: n.role && (n.role.value === 'article' || n.role.value === 'group' || n.role.value === 'log') &&
+                          - generic [ref=e515]: n.name && n.name.value && n.name.value.length > 50
+                          - generic [ref=e517]: );
+                          - generic [ref=e520]: "if (textNodes.length > 0) {"
+                          - generic [ref=e522]: "return { success: true, text: textNodes[textNodes.length - 1].name.value, method: 'ax-tree' };"
+                          - generic [ref=e524]: "}"
+                          - generic [ref=e527]: "return { success: false, error: 'No suitable AX nodes found' };"
+                          - generic [ref=e529]: "}"
+                  - 'heading "Strategy C: MutationObserver Accumulator (for streaming capture)" [level=3] [ref=e533]'
+                  - generic [ref=e534]:
+                    - text: If you want the text
+                    - emphasis [ref=e535]: as it streams
+                    - text: "(not just at the end), inject an observer before the prompt is sent:"
+                  - generic [ref=e536]:
+                    - generic [ref=e537]: js
+                    - code [ref=e553]:
+                      - generic [ref=e554]:
+                        - textbox "Editor content"
+                        - textbox [ref=e555]
+                        - generic [ref=e557]:
+                          - generic [ref=e558]:
+                            - generic [ref=e560] [cursor=pointer]: 
+                            - generic [ref=e561]: "1"
+                          - generic [ref=e562]:
+                            - generic [ref=e563] [cursor=pointer]: 
+                            - generic [ref=e564]: "2"
+                          - generic [ref=e565]: "3"
+                          - generic [ref=e567]:
+                            - generic [ref=e568] [cursor=pointer]: 
+                            - generic [ref=e569]: "4"
+                          - generic [ref=e570]: "5"
+                          - generic [ref=e572]: "6"
+                          - generic [ref=e574]:
+                            - generic [ref=e575] [cursor=pointer]: 
+                            - generic [ref=e576]: "7"
+                          - generic [ref=e577]:
+                            - generic [ref=e578] [cursor=pointer]: 
+                            - generic [ref=e579]: "8"
+                          - generic [ref=e580]:
+                            - generic [ref=e581] [cursor=pointer]: 
+                            - generic [ref=e582]: "9"
+                          - generic [ref=e583]:
+                            - generic [ref=e584] [cursor=pointer]: 
+                            - generic [ref=e585]: "10"
+                          - generic [ref=e586]: "11"
+                          - generic [ref=e588]: "12"
+                          - generic [ref=e590]:
+                            - generic [ref=e591] [cursor=pointer]: 
+                            - generic [ref=e592]: "13"
+                          - generic [ref=e593]: "14"
+                          - generic [ref=e595]:
+                            - generic [ref=e596] [cursor=pointer]: 
+                            - generic [ref=e597]: "15"
+                          - generic [ref=e598]: "16"
+                          - generic [ref=e600]: "17"
+                          - generic [ref=e602]: "18"
+                          - generic [ref=e604]: "19"
+                          - generic [ref=e606]: "20"
+                          - generic [ref=e608]: "21"
+                          - generic [ref=e610]: "22"
+                          - generic [ref=e612]: "23"
+                          - generic [ref=e614]: "24"
+                          - generic [ref=e616]: "25"
+                          - generic [ref=e618]: "26"
+                          - generic [ref=e620]: "27"
+                          - generic [ref=e622]: "28"
+                          - generic [ref=e624]: "29"
+                          - generic [ref=e626]:
+                            - generic [ref=e627] [cursor=pointer]: 
+                            - generic [ref=e628]: "30"
+                          - generic [ref=e629]:
+                            - generic [ref=e630] [cursor=pointer]: 
+                            - generic [ref=e631]: "31"
+                          - generic [ref=e632]: "32"
+                          - generic [ref=e634]:
+                            - generic [ref=e635] [cursor=pointer]: 
+                            - generic [ref=e636]: "33"
+                          - generic [ref=e637]:
+                            - generic [ref=e638] [cursor=pointer]: 
+                            - generic [ref=e639]: "34"
+                          - generic [ref=e640]: "35"
+                          - generic [ref=e642]: "36"
+                          - generic [ref=e644]: "37"
+                          - generic [ref=e646]: "38"
+                          - generic [ref=e648]: "39"
+                          - generic [ref=e650]: "40"
+                          - generic [ref=e652]: "41"
+                          - generic [ref=e654]: "42"
+                          - generic [ref=e656]: "43"
+                          - generic [ref=e658]: "44"
+                        - generic [ref=e706]:
+                          - generic [ref=e707]: "async function installResponseAccumulator(tabId) {"
+                          - generic [ref=e709]: "await chrome.scripting.executeScript({"
+                          - generic [ref=e711]: "target: { tabId },"
+                          - generic [ref=e713]: "func: () => {"
+                          - generic [ref=e715]: "window.__autoprompt_response = { chunks: [], done: false, startTime: Date.now() };"
+                          - generic [ref=e718]: "const observer = new MutationObserver((mutations) => {"
+                          - generic [ref=e720]: "for (const mutation of mutations) {"
+                          - generic [ref=e722]: "for (const node of mutation.addedNodes) {"
+                          - generic [ref=e724]: "if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {"
+                          - generic [ref=e726]: window.__autoprompt_response.chunks.push(node.textContent);
+                          - generic [ref=e728]: "}"
+                          - generic [ref=e730]: "if (node.nodeType === Node.ELEMENT_NODE) {"
+                          - generic [ref=e732]: const text = node.innerText || node.textContent || '';
+                          - generic [ref=e734]: "if (text.trim()) {"
+                          - generic [ref=e736]: window.__autoprompt_response.chunks.push(text);
+                          - generic [ref=e738]: "}"
+                          - generic [ref=e740]: "}"
+                          - generic [ref=e742]: "}"
+                          - generic [ref=e744]: "}"
+                          - generic [ref=e746]: "});"
+                          - generic [ref=e749]: // Observe the entire body — we'll narrow down later
+                          - generic [ref=e751]: "observer.observe(document.body, { childList: true, subtree: true, characterData: true });"
+                          - generic [ref=e753]: window.__autoprompt_observer = observer;
+                          - generic [ref=e755]: "}"
+                          - generic [ref=e757]: "});"
+                          - generic [ref=e759]: "}"
+                          - generic [ref=e762]: "async function collectAccumulatedResponse(tabId) {"
+                          - generic [ref=e764]: "const results = await chrome.scripting.executeScript({"
+                          - generic [ref=e766]: "target: { tabId },"
+                          - generic [ref=e768]: "func: () => {"
+                          - generic [ref=e770]: "if (window.__autoprompt_observer) {"
+                          - generic [ref=e772]: window.__autoprompt_observer.disconnect();
+                          - generic [ref=e774]: delete window.__autoprompt_observer;
+                          - generic [ref=e776]: "}"
+                          - generic [ref=e778]: const data = window.__autoprompt_response;
+                          - generic [ref=e780]: delete window.__autoprompt_response;
+                          - generic [ref=e782]: return data;
+                          - generic [ref=e784]: "}"
+                          - generic [ref=e786]: "});"
+                          - generic [ref=e788]: "return results && results[0] ? results[0].result : null;"
+                          - generic [ref=e790]: "}"
+                  - separator [ref=e795]
+                  - 'heading "The Orchestrator: Tying It Together" [level=2] [ref=e796]'
+                  - generic [ref=e797]: "Here's how Part 2 integrates into your existing flow:"
+                  - generic [ref=e798]:
+                    - generic [ref=e799]: js
+                    - code [ref=e815]:
+                      - generic [ref=e816]:
+                        - textbox "Editor content"
+                        - textbox [ref=e817]
+                        - generic [ref=e819]:
+                          - generic [ref=e820]:
+                            - generic [ref=e822] [cursor=pointer]: 
+                            - generic [ref=e823]: "1"
+                          - generic [ref=e824]: "2"
+                          - generic [ref=e826]: "3"
+                          - generic [ref=e828]: "4"
+                          - generic [ref=e830]: "5"
+                          - generic [ref=e832]: "6"
+                          - generic [ref=e834]: "7"
+                          - generic [ref=e836]: "8"
+                          - generic [ref=e838]: "9"
+                          - generic [ref=e840]: "10"
+                          - generic [ref=e842]: "11"
+                          - generic [ref=e844]: "12"
+                          - generic [ref=e846]: "13"
+                          - generic [ref=e848]: "14"
+                          - generic [ref=e850]: "15"
+                          - generic [ref=e852]: "16"
+                          - generic [ref=e854]: "17"
+                          - generic [ref=e856]: "18"
+                          - generic [ref=e858]: "19"
+                          - generic [ref=e860]: "20"
+                          - generic [ref=e862]:
+                            - generic [ref=e863] [cursor=pointer]: 
+                            - generic [ref=e864]: "21"
+                          - generic [ref=e865]: "22"
+                          - generic [ref=e867]: "23"
+                          - generic [ref=e869]: "24"
+                          - generic [ref=e871]: "25"
+                          - generic [ref=e873]:
+                            - generic [ref=e874] [cursor=pointer]: 
+                            - generic [ref=e875]: "26"
+                          - generic [ref=e876]: "27"
+                          - generic [ref=e878]: "28"
+                          - generic [ref=e880]:
+                            - generic [ref=e881] [cursor=pointer]: 
+                            - generic [ref=e882]: "29"
+                          - generic [ref=e883]: "30"
+                          - generic [ref=e885]:
+                            - generic [ref=e886] [cursor=pointer]: 
+                            - generic [ref=e887]: "31"
+                          - generic [ref=e888]: "32"
+                          - generic [ref=e890]: "33"
+                          - generic [ref=e892]: "34"
+                          - generic [ref=e894]: "35"
+                          - generic [ref=e896]: "36"
+                          - generic [ref=e898]: "37"
+                          - generic [ref=e900]: "38"
+                          - generic [ref=e902]: "39"
+                          - generic [ref=e904]: "40"
+                          - generic [ref=e906]: "41"
+                          - generic [ref=e908]:
+                            - generic [ref=e909] [cursor=pointer]: 
+                            - generic [ref=e910]: "42"
+                          - generic [ref=e911]: "43"
+                          - generic [ref=e913]: "44"
+                          - generic [ref=e915]: "45"
+                          - generic [ref=e917]: "46"
+                          - generic [ref=e919]: "47"
+                          - generic [ref=e921]: "48"
+                          - generic [ref=e923]: "49"
+                          - generic [ref=e925]: "50"
+                          - generic [ref=e927]: "51"
+                        - generic [ref=e982]:
+                          - generic [ref=e983]: "async function sendAndCaptureResponse(tabId, url, prompt, logger) {"
+                          - generic [ref=e985]: // 1. Install the accumulator BEFORE sending (catches all streamed text)
+                          - generic [ref=e987]: await installResponseAccumulator(tabId);
+                          - generic [ref=e990]: // 2. Enable network monitoring
+                          - generic [ref=e992]: "await chrome.debugger.sendCommand({ tabId }, 'Network.enable', { maxPostDataSize: 0 });"
+                          - generic [ref=e995]: // 3. Send the prompt (your existing code)
+                          - generic [ref=e997]: await sendTextThenEnter(tabId, prompt);
+                          - generic [ref=e1000]: // 4. Wait for the response to complete (Layer 1)
+                          - generic [ref=e1002]: const completion = await waitForResponseCompletion(tabId, logger, 120000);
+                          - generic [ref=e1004]: "logger.log(tabId, `Response complete via: ${completion.method} (confidence: ${completion.confidence})`);"
+                          - generic [ref=e1007]: // 5. Small grace period for final DOM paint
+                          - generic [ref=e1009]: await delay(500);
+                          - generic [ref=e1012]: // 6. Extract the text (Layer 2) — try strategies in order
+                          - generic [ref=e1014]: let extraction = await extractLastResponse(tabId, logger);
+                          - generic [ref=e1017]: "if (!extraction.success) {"
+                          - generic [ref=e1019]: logger.log(tabId, 'Primary extraction failed, trying AX tree...');
+                          - generic [ref=e1021]: extraction = await extractViaAccessibilityTree(tabId, logger);
+                          - generic [ref=e1023]: "}"
+                          - generic [ref=e1026]: "if (!extraction.success) {"
+                          - generic [ref=e1028]: logger.log(tabId, 'AX tree failed, falling back to accumulator...');
+                          - generic [ref=e1030]: const accumulated = await collectAccumulatedResponse(tabId);
+                          - generic [ref=e1032]: "if (accumulated && accumulated.chunks.length > 0) {"
+                          - generic [ref=e1034]: // Deduplicate and join (the accumulator catches overlapping renders)
+                          - generic [ref=e1036]: "extraction = {"
+                          - generic [ref=e1038]: "success: true,"
+                          - generic [ref=e1040]: "text: deduplicateAndJoin(accumulated.chunks),"
+                          - generic [ref=e1042]: "method: 'accumulator'"
+                          - generic [ref=e1044]: "};"
+                          - generic [ref=e1046]: "}"
+                          - generic [ref=e1048]: "}"
+                          - generic [ref=e1051]: // 7. Cleanup
+                          - generic [ref=e1053]: "await chrome.debugger.sendCommand({ tabId }, 'Network.disable').catch(() => {});"
+                          - generic [ref=e1056]: "return {"
+                          - generic [ref=e1058]: url,
+                          - generic [ref=e1060]: tabId,
+                          - generic [ref=e1062]: "status: extraction.success ? 'success' : 'error',"
+                          - generic [ref=e1064]: "response: extraction.text || null,"
+                          - generic [ref=e1066]: "completionMethod: completion.method,"
+                          - generic [ref=e1068]: "extractionMethod: extraction.method || 'dom-heuristic',"
+                          - generic [ref=e1070]: "reason: extraction.success ? 'Response captured' : extraction.error"
+                          - generic [ref=e1072]: "};"
+                          - generic [ref=e1074]: "}"
+                  - separator [ref=e1079]
+                  - heading "Pitfalls — The Ugly Truth" [level=2] [ref=e1080]
+                  - heading [level=3] [ref=e1081]:
+                    - text: "1."
+                    - strong [ref=e1082]: The "thinking" pause will fool you
+                  - generic [ref=e1083]:
+                    - text: Models like Claude and o1/o3 have long "thinking" phases where the network stream is open but no visible text appears. Your stability timer (4s of no chunks) will fire prematurely.
+                    - strong [ref=e1084]: "Fix:"
+                    - text: Only start the stability timer
+                    - emphasis [ref=e1085]: after
+                    - text: the first visible text chunk arrives. Track
+                    - code [ref=e1086] [cursor=pointer]: firstTokenReceived
+                    - text: separately.
+                  - heading [level=3] [ref=e1087]:
+                    - text: "2."
+                    - strong [ref=e1088]: Some sites use WebSocket, not HTTP streaming
+                  - generic [ref=e1089]:
+                    - text: Gemini sometimes uses WebSocket for its streaming.
+                    - code [ref=e1090] [cursor=pointer]: Network.enable
+                    - text: won't catch WS frames.
+                    - strong [ref=e1091]: "Fix:"
+                    - text: Also enable
+                    - code [ref=e1092] [cursor=pointer]: Network.enable
+                    - text: with WebSocket tracking, or listen for
+                    - code [ref=e1093] [cursor=pointer]: Network.webSocketFrameReceived
+                    - text: events. Alternatively, your MutationObserver fallback handles this case.
+                  - heading [level=3] [ref=e1094]:
+                    - text: "3."
+                    - strong [ref=e1095]: The DOM isn't settled when the stream closes
+                  - generic [ref=e1096]:
+                    - text: The network says "done" but React/Vue/Svelte hasn't finished its render cycle. You'll get truncated text.
+                    - strong [ref=e1097]: "Fix:"
+                    - text: "Your 500ms grace period helps, but a better approach is: after network-close, poll the extracted text length every 200ms until it's stable for 600ms."
+                  - generic [ref=e1098]:
+                    - generic [ref=e1099]: js
+                    - code [ref=e1115]:
+                      - generic [ref=e1116]:
+                        - textbox "Editor content"
+                        - textbox [ref=e1117]
+                        - generic [ref=e1119]:
+                          - generic [ref=e1120]:
+                            - generic [ref=e1122] [cursor=pointer]: 
+                            - generic [ref=e1123]: "1"
+                          - generic [ref=e1124]: "2"
+                          - generic [ref=e1126]: "3"
+                          - generic [ref=e1128]: "4"
+                          - generic [ref=e1130]: "5"
+                          - generic [ref=e1132]:
+                            - generic [ref=e1133] [cursor=pointer]: 
+                            - generic [ref=e1134]: "6"
+                          - generic [ref=e1135]: "7"
+                          - generic [ref=e1137]: "8"
+                          - generic [ref=e1139]: "9"
+                          - generic [ref=e1141]:
+                            - generic [ref=e1142] [cursor=pointer]: 
+                            - generic [ref=e1143]: "10"
+                          - generic [ref=e1144]: "11"
+                          - generic [ref=e1146]:
+                            - generic [ref=e1147] [cursor=pointer]: 
+                            - generic [ref=e1148]: "12"
+                          - generic [ref=e1149]: "13"
+                          - generic [ref=e1151]: "14"
+                          - generic [ref=e1153]: "15"
+                          - generic [ref=e1155]:
+                            - generic [ref=e1156] [cursor=pointer]: 
+                            - generic [ref=e1157]: "16"
+                          - generic [ref=e1158]: "17"
+                          - generic [ref=e1160]: "18"
+                          - generic [ref=e1162]: "19"
+                          - generic [ref=e1164]: "20"
+                          - generic [ref=e1166]: "21"
+                          - generic [ref=e1168]: "22"
+                          - generic [ref=e1170]: "23"
+                          - generic [ref=e1172]: "24"
+                          - generic [ref=e1174]: "25"
+                        - generic [ref=e1203]:
+                          - generic [ref=e1204]: "async function waitForDomSettled(tabId, extractFn, logger) {"
+                          - generic [ref=e1206]: let lastText = '';
+                          - generic [ref=e1208]: let stableCount = 0;
+                          - generic [ref=e1210]: const REQUIRED_STABLE = 3; // 3 consecutive identical reads = settled
+                          - generic [ref=e1213]: "for (let i = 0; i < 30; i++) { // max 6 seconds"
+                          - generic [ref=e1215]: const result = await extractFn(tabId);
+                          - generic [ref=e1217]: "const text = result.success ? result.text : '';"
+                          - generic [ref=e1220]: "if (text === lastText && text.length > 0) {"
+                          - generic [ref=e1222]: stableCount++;
+                          - generic [ref=e1224]: "if (stableCount >= REQUIRED_STABLE) {"
+                          - generic [ref=e1226]: "logger.log(tabId, `DOM settled after ${i * 200}ms (text length: ${text.length})`);"
+                          - generic [ref=e1228]: return result;
+                          - generic [ref=e1230]: "}"
+                          - generic [ref=e1232]: "} else {"
+                          - generic [ref=e1234]: stableCount = 0;
+                          - generic [ref=e1236]: "}"
+                          - generic [ref=e1238]: lastText = text;
+                          - generic [ref=e1240]: await delay(200);
+                          - generic [ref=e1242]: "}"
+                          - generic [ref=e1245]: logger.log(tabId, 'DOM settle timeout — returning last read');
+                          - generic [ref=e1247]: return await extractFn(tabId);
+                          - generic [ref=e1249]: "}"
+                  - heading [level=3] [ref=e1253]:
+                    - text: "4."
+                    - strong [ref=e1254]: Markdown rendering destroys raw text
+                  - generic [ref=e1255]:
+                    - code [ref=e1256] [cursor=pointer]: innerText
+                    - text: on a rendered markdown block gives you display text, but you lose code block formatting, table structure, etc. If you want the
+                    - emphasis [ref=e1257]: raw
+                    - text: markdown, look for a
+                    - code [ref=e1258] [cursor=pointer]: <code>
+                    - text: or
+                    - code [ref=e1259] [cursor=pointer]: <pre>
+                    - text: element's
+                    - code [ref=e1260] [cursor=pointer]: textContent
+                    - text: ", or check if the site stores the raw response in a"
+                    - code [ref=e1261] [cursor=pointer]: data-*
+                    - text: attribute or a React fiber.
+                  - heading [level=3] [ref=e1262]:
+                    - text: "5."
+                    - strong [ref=e1263]: "Multi-turn context: you might grab the wrong message"
+                  - generic [ref=e1264]:
+                    - text: If the page already has a conversation history, "last message" might be a previous response, not the new one.
+                    - strong [ref=e1265]: "Fix:"
+                    - text: Before sending the prompt, snapshot the current message count. After the response, extract message at index
+                    - code [ref=e1266] [cursor=pointer]: previousCount + 1
+                    - text: (the new assistant reply).
+                  - generic [ref=e1267]:
+                    - generic [ref=e1268]: js
+                    - code [ref=e1284]:
+                      - generic [ref=e1285]:
+                        - textbox "Editor content"
+                        - textbox [ref=e1286]
+                        - generic [ref=e1288]:
+                          - generic [ref=e1289]: "1"
+                          - generic [ref=e1292]: "2"
+                          - generic [ref=e1294]: "3"
+                          - generic [ref=e1296]: "4"
+                          - generic [ref=e1298]: "5"
+                        - generic [ref=e1307]:
+                          - generic [ref=e1308]: "// Before sending:"
+                          - generic [ref=e1310]: const preCount = await getMessageCount(tabId);
+                          - generic [ref=e1313]: "// After response:"
+                          - generic [ref=e1315]: "const response = await getMessageAtIndex(tabId, preCount); // 0-indexed: the new one"
+                  - heading [level=3] [ref=e1319]:
+                    - text: "6."
+                    - strong [ref=e1320]: Rate limits and CAPTCHAs
+                  - generic [ref=e1321]: If you're hitting 6+ sites in parallel, some will throttle or CAPTCHA you. Your response extractor needs to detect "this isn't an AI response, it's a rate-limit page" and flag it. Check for keywords like "rate limit," "try again," "unusual traffic" in the extracted text.
+                  - heading [level=3] [ref=e1322]:
+                    - text: "7."
+                    - strong [ref=e1323]: Service worker lifecycle
+                  - generic [ref=e1324]:
+                    - text: Your background.js is a Manifest V3 service worker. It can be killed after 30s of inactivity. A 120s response wait will get your worker terminated mid-operation.
+                    - strong [ref=e1325]: "Fix:"
+                    - text: Use
+                    - code [ref=e1326] [cursor=pointer]: chrome.alarms
+                    - text: as a keepalive, or better, use
+                    - code [ref=e1327] [cursor=pointer]: chrome.offscreen
+                    - text: documents for long-running work. Alternatively, keep the debugger attached (which you already do) — an active debugger session keeps the worker alive in practice, though it's not guaranteed by spec.
+                  - heading [level=3] [ref=e1328]:
+                    - text: "8."
+                    - strong [ref=e1329]: Stealth mode complication
+                  - generic [ref=e1330]:
+                    - text: In stealth mode, you spoof
+                    - code [ref=e1331] [cursor=pointer]: visibilityState
+                    - text: to
+                    - code [ref=e1332] [cursor=pointer]: "'visible'"
+                    - text: . Some sites (notably ChatGPT) pause streaming when they detect the tab is hidden. Your spoof handles this. But if the spoof fails or is detected, the AI response will never arrive, and your network listener will hit the hard timeout. Build in a "stealth integrity check" that verifies the spoof is still active before waiting for the response.
+                  - separator [ref=e1334]
+                  - 'heading "My Honest Recommendation: The Architecture" [level=2] [ref=e1335]'
+                  - code [ref=e1352]:
+                    - generic [ref=e1353]:
+                      - textbox "Editor content"
+                      - textbox [ref=e1354]
+                      - generic [ref=e1356]:
+                        - generic [ref=e1357]: "1"
+                        - generic [ref=e1360]: "2"
+                        - generic [ref=e1362]: "3"
+                        - generic [ref=e1364]:
+                          - generic [ref=e1365] [cursor=pointer]: 
+                          - generic [ref=e1366]: "4"
+                        - generic [ref=e1367]: "5"
+                        - generic [ref=e1369]: "6"
+                        - generic [ref=e1371]: "7"
+                        - generic [ref=e1373]: "8"
+                        - generic [ref=e1375]: "9"
+                        - generic [ref=e1377]:
+                          - generic [ref=e1378] [cursor=pointer]: 
+                          - generic [ref=e1379]: "10"
+                        - generic [ref=e1380]: "11"
+                        - generic [ref=e1382]: "12"
+                        - generic [ref=e1384]: "13"
+                        - generic [ref=e1386]: "14"
+                        - generic [ref=e1388]: "15"
+                        - generic [ref=e1390]: "16"
+                        - generic [ref=e1392]: "17"
+                        - generic [ref=e1394]: "18"
+                        - generic [ref=e1396]: "19"
+                        - generic [ref=e1398]: "20"
+                        - generic [ref=e1400]: "21"
+                        - generic [ref=e1402]: "22"
+                        - generic [ref=e1404]: "23"
+                        - generic [ref=e1406]: "24"
+                        - generic [ref=e1408]: "25"
+                        - generic [ref=e1410]: "26"
+                        - generic [ref=e1412]: "27"
+                        - generic [ref=e1414]: "28"
+                        - generic [ref=e1416]:
+                          - generic [ref=e1417] [cursor=pointer]: 
+                          - generic [ref=e1418]: "29"
+                        - generic [ref=e1419]: "30"
+                        - generic [ref=e1421]: "31"
+                        - generic [ref=e1423]: "32"
+                        - generic [ref=e1425]: "33"
+                        - generic [ref=e1427]: "34"
+                        - generic [ref=e1429]: "35"
+                      - generic [ref=e1468]:
+                        - generic [ref=e1469]: ┌─────────────────────────────────────────────────────────────┐
+                        - generic [ref=e1471]: │ ORCHESTRATOR │
+                        - generic [ref=e1473]: │ (lives in background.js, extends your runAutomation) │
+                        - generic [ref=e1475]: └────────────────────┬────────────────────────────────────────┘
+                        - generic [ref=e1477]: │
+                        - generic [ref=e1479]: ┌───────────┼───────────┐
+                        - generic [ref=e1481]: ▼ ▼ ▼
+                        - generic [ref=e1483]: ┌──────────┐ ┌──────────┐ ┌──────────┐
+                        - generic [ref=e1485]: │ Tab 1 │ │ Tab 2 │ │ Tab N │ (parallel, as today)
+                        - generic [ref=e1487]: └────┬─────┘ └────┬─────┘ └────┬─────┘
+                        - generic [ref=e1489]: │ │ │
+                        - generic [ref=e1491]: ▼ ▼ ▼
+                        - generic [ref=e1493]: ┌─────────────────────────────────────────────┐
+                        - generic [ref=e1495]: │ PER-TAB RESPONSE PIPELINE │
+                        - generic [ref=e1497]: │ │
+                        - generic [ref=e1499]: │ 1. installResponseAccumulator() │
+                        - generic [ref=e1501]: │ 2. Network.enable (stream detection) │
+                        - generic [ref=e1503]: │ 3. sendTextThenEnter() [existing] │
+                        - generic [ref=e1505]: │ 4. waitForResponseCompletion() │
+                        - generic [ref=e1507]: "│ ├─ Primary: Network.loadingFinished │"
+                        - generic [ref=e1509]: "│ ├─ Fallback: 4s stability timer │"
+                        - generic [ref=e1511]: "│ └─ Safety: 120s hard timeout │"
+                        - generic [ref=e1513]: │ 5. waitForDomSettled() │
+                        - generic [ref=e1515]: │ 6. extractLastResponse() │
+                        - generic [ref=e1517]: "│ ├─ Try: DOM heuristic │"
+                        - generic [ref=e1519]: "│ ├─ Try: Accessibility tree │"
+                        - generic [ref=e1521]: "│ └─ Try: Accumulator chunks │"
+                        - generic [ref=e1523]: │ 7. Post-process (dedupe, trim, validate) │
+                        - generic [ref=e1525]: └─────────────────────────────────────────────┘
+                        - generic [ref=e1527]: │
+                        - generic [ref=e1529]: ▼
+                        - generic [ref=e1531]: ┌─────────────────────────────────────────────┐
+                        - generic [ref=e1533]: │ RESULTS (chrome.storage.local) │
+                        - generic [ref=e1535]: "│ { url, status, response, method, timing } │"
+                        - generic [ref=e1537]: └─────────────────────────────────────────────┘
+                  - separator [ref=e1542]
+                  - 'heading "One More Thing: The \"Universal\" Lie" [level=2] [ref=e1543]'
+                  - generic [ref=e1544]:
+                    - text: I'll be straight with you.
+                    - strong [ref=e1545]: There is no truly universal extractor that works on every chat site with zero per-site code.
+                    - text: What you
+                    - emphasis [ref=e1546]: can
+                    - text: "do is build the 3-layer fallback system above, which will work on ~90% of sites without customization. For the remaining 10%, you'll need a small registry:"
+                  - generic [ref=e1547]:
+                    - generic [ref=e1548]: js
+                    - code [ref=e1564]:
+                      - generic [ref=e1565]:
+                        - textbox "Editor content"
+                        - textbox [ref=e1566]
+                        - generic [ref=e1568]:
+                          - generic [ref=e1569]:
+                            - generic [ref=e1571] [cursor=pointer]: 
+                            - generic [ref=e1572]: "1"
+                          - generic [ref=e1573]: "2"
+                          - generic [ref=e1575]: "3"
+                          - generic [ref=e1577]: "4"
+                          - generic [ref=e1579]: "5"
+                        - generic [ref=e1588]:
+                          - generic [ref=e1589]: "const SITE_HINTS = {"
+                          - generic [ref=e1591]: "'chat.openai.com': { responseSelector: '[data-message-author-role=\"assistant\"]' },"
+                          - generic [ref=e1593]: "'claude.ai': { responseSelector: '[data-testid=\"conversation-turn\"] .font-claude-message' },"
+                          - generic [ref=e1595]: "'gemini.google.com': { responseSelector: '.model-response-text' },"
+                          - generic [ref=e1597]: "};"
+                  - generic [ref=e1601]:
+                    - text: This isn't "custom code per site" — it's a 3-line config entry per site that overrides the heuristic when needed. Your scoring system in Part 1 already embraces this philosophy (the
+                    - code [ref=e1602] [cursor=pointer]: scoreCandidate
+                    - text: function is a heuristic with tunable weights). Do the same here.
+                  - separator [ref=e1604]
+                  - heading "TL;DR — What I'd Build Monday Morning" [level=2] [ref=e1605]
+                  - list [ref=e1606]:
+                    - listitem [ref=e1607]:
+                      - strong [ref=e1608]: Network stream detection
+                      - text: as the primary "done" signal. It's the only method that doesn't lie.
+                    - listitem [ref=e1609]:
+                      - strong [ref=e1610]: DOM extraction with a "last message" heuristic
+                      - text: as the primary text source.
+                    - listitem [ref=e1611]:
+                      - strong [ref=e1612]: MutationObserver accumulator
+                      - text: installed pre-send as the safety net.
+                    - listitem [ref=e1613]:
+                      - strong [ref=e1614]: Stability polling
+                      - text: between network-close and extraction to avoid render-lag truncation.
+                    - listitem [ref=e1615]:
+                      - strong [ref=e1616]: A tiny per-site hint registry
+                      - text: for the 2-3 sites where the heuristic stumbles.
+                    - listitem [ref=e1617]:
+                      - strong [ref=e1618]: Message-count snapshotting
+                      - text: before send to avoid grabbing stale responses.
+                  - generic [ref=e1619]: You already have the hardest infrastructure in place (debugger attach, CDP commands, parallel tab orchestration, stealth spoofing). Part 2 is genuinely easier than what you've built. The network layer is maybe 80 lines. The DOM extractor is maybe 100. The orchestrator glue is 50. You're looking at ~250 lines of new code to close this out.
+                  - generic [ref=e1620]: Good luck. The architecture is sound — now go make it read.
+              - generic [ref=e1624]:
+                - button "Copy" [ref=e1625] [cursor=pointer]
+                - button "Good Response" [ref=e1629] [cursor=pointer]
+                - button "Bad Response" [ref=e1633] [cursor=pointer]
+                - button "Share" [ref=e1637] [cursor=pointer]
+                - button "Regenerate" [ref=e1641] [cursor=pointer]
+                - button "More actions" [ref=e1645] [cursor=pointer]
+            - generic [ref=e1655]:
+              - paragraph [ref=e1656]: "ROUND 2: SYNTHESIS CHALLENGE Last round, you proposed a Two-Layer System (CDP Network + DOM Heuristics). Now I need you to react to what 4 OTHER AIs proposed and converge on the best unified design. Here are the other proposals: ## GLM-5.2 (Z.ai) — \"Text Stability & Delta Diffing\" - Completion: \"Stop generating\" button aria-label match. When appears → typing. When disappears → done. - Fallback: Poll document.body.innerText every 600ms. Unchanged for 3 checks (1.8s) AND text grew → done. - Extraction: Delta diff via lastIndexOf(promptText). Fallback: finalText.substring(preSendText.length). ## Gemini — \"Heuristic DOM Settling + Input Lock Signal\" - MutationObserver, find node fastest growth per 500ms window. - 2500ms debounce on activeResponseNode mutations. - Input re-enabled = 99% confidence. - Extract innerHTML → markdown. ## Kimi — \"Conversation Archaeology Engine\" (Full Profiler) - Pre-inject MutationObserver via CDP before send. - Score candidates: text length (2000), growth rate (×50), position bottom 70% (+500), large block (+300), recency penalty, mutation count penalty. - Network idle secondary (2s). Timeout 90s. Poll 400ms. - Extract innerText or HTML-to-markdown. ## DeepSeek — \"CDP-Injected Answer Watcher\" - Runtime.evaluate with awaitPromise:true after send. - Find assistant: search DOM for prompt text, sibling traversal. - MutationObserver, 2s debounce, no streaming indicators check. - Keep debugger attached. --- ## YOUR TASK 1. **CRITIQUE**: What does each proposal get right and wrong? 2. **DECIDE**: What would you take from each into ONE final architecture? 3. **IMPLEMENT**: Write actual JavaScript code: watchForAnswer(tabId, prompt), injected observer script as string for Runtime.evaluate, heuristic scoring, completion detection, extraction, cleanup. 4. **TRADE-OFFS**: 90% vs 100% solution. 5. **CODE QUALITY**: Must work inside MV3 extension (service worker, CDP limits)."
+              - button "Expand" [ref=e1657] [cursor=pointer]
+            - generic [ref=e1666]:
+              - generic [ref=e1667]:
+                - generic [ref=e1668]: Thinking completed
+                - generic [ref=e1684]:
+                  - 'heading "Round 2: Unified Architecture — Critique, Synthesis, Implementation" [level=1] [ref=e1685]'
+                  - separator [ref=e1687]
+                  - 'heading "1. CRITIQUE: What Each Gets Right and Wrong" [level=2] [ref=e1688]'
+                  - heading "GLM-5.2 — \"Text Stability & Delta Diffing\"" [level=3] [ref=e1689]
+                  - strong [ref=e1691]: "Gets right:"
+                  - list [ref=e1692]:
+                    - listitem [ref=e1693]:
+                      - text: The "Stop generating" button disappearance is a genuinely clever signal. It's one of the few UI elements that
+                      - emphasis [ref=e1694]: universally
+                      - text: correlates with generation state. When it's gone, the model is done.
+                    - listitem [ref=e1695]:
+                      - text: Delta diffing via
+                      - code [ref=e1696] [cursor=pointer]: lastIndexOf(promptText)
+                      - text: is a smart anchoring strategy. It solves the "where does the response start?" problem without needing to know the DOM structure.
+                  - strong [ref=e1698]: "Gets wrong:"
+                  - list [ref=e1699]:
+                    - listitem [ref=e1700]:
+                      - strong [ref=e1701]: The stop button is not universal.
+                      - text: DeepSeek's UI doesn't always render one. Gemini's is an icon with no aria-label in some locales. Some sites replace it with a "Regenerate" button rather than removing it. Relying on this as a
+                      - emphasis [ref=e1702]: primary
+                      - text: signal means you fail silently on 2-3 of the 6+ sites.
+                    - listitem [ref=e1703]:
+                      - strong [ref=e1704]: 1.8s stability window is catastrophically short for reasoning models.
+                      - text: Claude's extended thinking, o3, and DeepSeek-R1 all pause for 5-30 seconds between visible output chunks while the chain-of-thought runs server-side. You'll declare "done" mid-response, every time, on these models.
+                    - listitem [ref=e1705]:
+                      - strong [ref=e1706]:
+                        - text: Polling
+                        - code [ref=e1707] [cursor=pointer]: document.body.innerText
+                        - text: is O(n) on the entire page DOM every 600ms.
+                      - text: On a long conversation (50+ messages), this is a layout thrash that can trigger the site's own performance guards. It also picks up nav chrome, sidebars, tooltips — noise that causes false "growth" signals.
+                    - listitem [ref=e1708]:
+                      - strong [ref=e1709]:
+                        - code [ref=e1710] [cursor=pointer]: lastIndexOf
+                        - text: breaks on multi-turn.
+                      - text: If the user asked "What is Python?" three messages ago, and the AI's new response mentions Python, your anchor point is wrong.
+                  - heading "Gemini — \"Heuristic DOM Settling + Input Lock\"" [level=3] [ref=e1711]
+                  - strong [ref=e1713]: "Gets right:"
+                  - list [ref=e1714]:
+                    - listitem [ref=e1715]:
+                      - strong [ref=e1716]: "\"Input re-enabled\" is the single best UI-level completion signal that nobody else prioritized."
+                      - text: Every chat site disables or locks the input during generation and re-enables it after. This is more universal than stop buttons, more reliable than text stability, and doesn't require knowing the response container's structure. It's a binary, unambiguous state change.
+                    - listitem [ref=e1717]:
+                      - strong [ref=e1718]: Fastest-growth-node identification
+                      - text: is the correct approach to the "which element is the response?" problem. You don't need to know class names — you just watch what's growing.
+                  - strong [ref=e1720]: "Gets wrong:"
+                  - list [ref=e1721]:
+                    - listitem [ref=e1722]:
+                      - strong [ref=e1723]: 2500ms debounce is a magic number that will break.
+                      - text: A model generating a code block might pause 3 seconds between the explanation and the code fence. A thinking model pauses much longer. A fixed debounce has no adaptive capacity.
+                    - listitem [ref=e1724]:
+                      - strong [ref=e1725]: "\"Find node with fastest growth per 500ms window\" requires maintaining a sliding-window state machine across multiple MutationObserver callbacks."
+                      - text: In a service worker context, this state must survive potential worker restarts. Gemini's proposal doesn't address persistence.
+                    - listitem [ref=e1726]:
+                      - strong [ref=e1727]: innerHTML → markdown conversion is a solved problem but not a trivial one.
+                      - text: Turndown.js is 30KB. In a content-script-injected context, you either bundle it or write a lossy converter. Gemini hand-waves this.
+                    - listitem [ref=e1728]:
+                      - strong [ref=e1729]: No network layer at all.
+                      - text: If the site uses virtual scrolling (recycling DOM nodes), the "fastest growth node" might get destroyed and recreated mid-stream. The MutationObserver loses its target. Network doesn't care about DOM recycling.
+                  - heading "Kimi — \"Conversation Archaeology Engine\"" [level=3] [ref=e1730]
+                  - strong [ref=e1732]: "Gets right:"
+                  - list [ref=e1733]:
+                    - listitem [ref=e1734]:
+                      - strong [ref=e1735]: The scoring system is the most rigorous candidate identification I've seen.
+                      - text: Weighting text length at 2000, growth rate at ×50, position in bottom 70% at +500 — this is a proper multi-signal classifier. It handles the case where multiple elements are mutating (loading spinners, timestamp updates, the actual response).
+                    - listitem [ref=e1736]:
+                      - strong [ref=e1737]: Pre-injection via CDP before send
+                      - text: is correct timing. You must be observing
+                      - emphasis [ref=e1738]: before
+                      - text: the first token arrives, or you miss the initial mutations that identify the response container.
+                    - listitem [ref=e1739]:
+                      - strong [ref=e1740]: "\"Recency penalty\" and \"mutation count penalty\""
+                      - text: are subtle but important. A loading spinner mutates 60 times per second but has no text growth. A timestamp updates once but is high in the DOM. These penalties correctly downweight both.
+                  - strong [ref=e1742]: "Gets wrong:"
+                  - list [ref=e1743]:
+                    - listitem [ref=e1744]:
+                      - strong [ref=e1745]: 90s timeout with 400ms polling is 225 polling cycles.
+                      - text: In a service worker, that's 225
+                      - code [ref=e1746] [cursor=pointer]: chrome.scripting.executeScript
+                      - text: calls, each crossing the process boundary. This is expensive and risks hitting Chrome's internal throttling on rapid scripting calls.
+                    - listitem [ref=e1747]:
+                      - strong [ref=e1748]: The scoring weights are static.
+                      - text: A response that's 200 characters (a short answer) scores poorly on the "text length" axis, potentially losing to a 500-character sidebar widget. The weights need normalization or a minimum-text threshold before scoring kicks in.
+                    - listitem [ref=e1749]:
+                      - strong [ref=e1750]: Network idle as "secondary" undersells it.
+                      - text: Network idle (no requests for 2s) is actually a
+                      - emphasis [ref=e1751]: stronger
+                      - text: signal than DOM heuristics. It should be co-primary, not secondary.
+                    - listitem [ref=e1752]:
+                      - strong [ref=e1753]: No mention of the "thinking pause" problem.
+                      - text: A 90s timeout helps, but the scoring system will keep re-evaluating during the pause and might lock onto the wrong node.
+                  - heading "DeepSeek — \"CDP-Injected Answer Watcher\"" [level=3] [ref=e1754]
+                  - strong [ref=e1756]: "Gets right:"
+                  - list [ref=e1757]:
+                    - listitem [ref=e1758]:
+                      - strong [ref=e1759]: Sibling traversal from the prompt text
+                      - text: is an elegant structural approach. You
+                      - emphasis [ref=e1760]: know
+                      - text: what you sent. Finding it in the DOM and looking at the next sibling is a strong positional anchor that doesn't depend on class names.
+                    - listitem [ref=e1761]:
+                      - strong [ref=e1762]: Keeping the debugger attached
+                      - text: is correct and aligns with the existing codebase. It also keeps the service worker alive (an active debugger session prevents MV3 worker termination in practice).
+                    - listitem [ref=e1763]:
+                      - strong [ref=e1764]:
+                        - code [ref=e1765] [cursor=pointer]: Runtime.evaluate
+                        - text: with
+                        - code [ref=e1766] [cursor=pointer]: "awaitPromise: true"
+                      - text: is the cleanest way to run async logic in the page context without multiple round-trips.
+                  - strong [ref=e1768]: "Gets wrong:"
+                  - list [ref=e1769]:
+                    - listitem [ref=e1770]:
+                      - strong [ref=e1771]:
+                        - code [ref=e1772] [cursor=pointer]: "awaitPromise: true"
+                        - text: with a MutationObserver is a footgun.
+                      - text: You're wrapping an indefinite observer in a Promise that resolves on debounce. If the debounce condition is never met (site hangs, network drops), the
+                      - code [ref=e1773] [cursor=pointer]: Runtime.evaluate
+                      - text: call blocks
+                      - emphasis [ref=e1774]: forever
+                      - text: . There's no timeout mechanism within the CDP call itself. You need an external
+                      - code [ref=e1775] [cursor=pointer]: Promise.race
+                      - text: with a hard timeout.
+                    - listitem [ref=e1776]:
+                      - strong [ref=e1777]: Sibling traversal breaks in virtualized lists.
+                      - text: ChatGPT and Claude both use virtual scrolling for long conversations. The prompt you sent might be recycled out of the DOM by the time the response arrives. Your anchor is gone.
+                    - listitem [ref=e1778]:
+                      - strong [ref=e1779]: "\"No streaming indicators check\" is stated as a feature but is actually a gap."
+                      - text: If you don't check for streaming indicators (typing dots, "Thinking..." text), you can't distinguish "the model is thinking silently" from "the response is done." You'll either wait too long or extract too early.
+                    - listitem [ref=e1780]:
+                      - strong [ref=e1781]: 2s debounce, same problem as Gemini.
+                      - text: Too short for reasoning models.
+                  - separator [ref=e1783]
+                  - 'heading "2. DECIDE: The Unified Architecture" [level=2] [ref=e1784]'
+                  - generic [ref=e1785]: "Here's what I'm taking from each, and why:"
+                  - generic [ref=e1786]:
+                    - img "Download" [ref=e1790] [cursor=pointer]
+                    - table [ref=e1794]:
+                      - rowgroup [ref=e1795]:
+                        - row [ref=e1796]:
+                          - columnheader "Source" [ref=e1797]
+                          - columnheader "What I Take" [ref=e1799]
+                          - columnheader "Role in Final Design" [ref=e1801]
+                      - rowgroup [ref=e1803]:
+                        - row [ref=e1804]:
+                          - cell [ref=e1805]:
+                            - strong [ref=e1807]: My original (Round 1)
+                          - cell "CDP Network stream-close detection" [ref=e1808]
+                          - cell [ref=e1810]:
+                            - generic [ref=e1811]:
+                              - strong [ref=e1812]: Primary completion signal
+                              - text: — ground truth
+                        - row [ref=e1813]:
+                          - cell [ref=e1814]:
+                            - strong [ref=e1816]: Gemini
+                          - cell "Input re-enablement detection" [ref=e1817]
+                          - cell [ref=e1819]:
+                            - generic [ref=e1820]:
+                              - strong [ref=e1821]: Secondary completion signal
+                              - text: — UI-level confirmation
+                        - row [ref=e1822]:
+                          - cell [ref=e1823]:
+                            - strong [ref=e1825]: GLM
+                          - cell "Stop-button disappearance" [ref=e1826]
+                          - cell [ref=e1828]:
+                            - generic [ref=e1829]:
+                              - strong [ref=e1830]: Tertiary completion signal
+                              - text: — cheap check
+                        - row [ref=e1831]:
+                          - cell [ref=e1832]:
+                            - strong [ref=e1834]: Kimi
+                          - cell "Weighted scoring for candidate ID" [ref=e1835]
+                          - cell [ref=e1837]:
+                            - generic [ref=e1838]:
+                              - strong [ref=e1839]: Response node identification
+                              - text: — which element to extract
+                        - row [ref=e1840]:
+                          - cell [ref=e1841]:
+                            - strong [ref=e1843]: Kimi
+                          - cell "Pre-injection timing" [ref=e1844]
+                          - cell [ref=e1846]:
+                            - strong [ref=e1848]: Observer must be live before send
+                        - row [ref=e1849]:
+                          - cell [ref=e1850]:
+                            - strong [ref=e1852]: Gemini
+                          - cell "Fastest-growth-node tracking" [ref=e1853]
+                          - cell [ref=e1855]:
+                            - generic [ref=e1856]:
+                              - strong [ref=e1857]: Feeds into Kimi's scoring
+                              - text: — growth rate axis
+                        - row [ref=e1858]:
+                          - cell [ref=e1859]:
+                            - strong [ref=e1861]: DeepSeek
+                          - cell "Sibling traversal from prompt" [ref=e1862]
+                          - cell [ref=e1864]:
+                            - generic [ref=e1865]:
+                              - strong [ref=e1866]: Extraction fallback
+                              - text: — positional anchor
+                        - row [ref=e1867]:
+                          - cell [ref=e1868]:
+                            - strong [ref=e1870]: GLM
+                          - cell [ref=e1871]:
+                            - generic [ref=e1872]:
+                              - text: Delta diff /
+                              - code [ref=e1873] [cursor=pointer]: lastIndexOf
+                          - cell [ref=e1874]:
+                            - generic [ref=e1875]:
+                              - strong [ref=e1876]: Extraction fallback
+                              - text: — text anchor
+                        - row [ref=e1877]:
+                          - cell [ref=e1878]:
+                            - strong [ref=e1880]: My original
+                          - cell "Stability polling with adaptive window" [ref=e1881]
+                          - cell [ref=e1883]:
+                            - generic [ref=e1884]:
+                              - strong [ref=e1885]: DOM settle verification
+                              - text: — post-completion
+                        - row [ref=e1886]:
+                          - cell [ref=e1887]:
+                            - strong [ref=e1889]: DeepSeek
+                          - cell [ref=e1890]:
+                            - generic [ref=e1891]:
+                              - code [ref=e1892] [cursor=pointer]: Runtime.evaluate
+                              - text: with
+                              - code [ref=e1893] [cursor=pointer]: awaitPromise
+                          - cell [ref=e1894]:
+                            - generic [ref=e1895]:
+                              - strong [ref=e1896]: Execution mechanism
+                              - text: — single CDP call for observer
+                  - strong [ref=e1898]: "What I'm rejecting:"
+                  - list [ref=e1899]:
+                    - listitem [ref=e1900]: GLM's body-wide innerText polling (too expensive, too noisy)
+                    - listitem [ref=e1901]: Gemini's fixed 2500ms debounce (replaced with adaptive multi-signal)
+                    - listitem [ref=e1902]: Kimi's 400ms × 225 polling loop (replaced with event-driven + single stability check)
+                    - listitem [ref=e1903]:
+                      - text: DeepSeek's unbounded
+                      - code [ref=e1904] [cursor=pointer]: awaitPromise
+                      - text: (wrapped in
+                      - code [ref=e1905] [cursor=pointer]: Promise.race
+                      - text: )
+                  - strong [ref=e1907]: "The completion detection hierarchy (first match wins):"
+                  - code [ref=e1924]:
+                    - generic [ref=e1925]:
+                      - textbox "Editor content"
+                      - textbox [ref=e1926]
+                      - generic [ref=e1928]:
+                        - generic [ref=e1929]: "1"
+                        - generic [ref=e1932]: "2"
+                        - generic [ref=e1934]: "3"
+                        - generic [ref=e1936]: "4"
+                        - generic [ref=e1938]: "5"
+                      - generic [ref=e1947]:
+                        - generic [ref=e1948]: "1. Network stream closed (loadingFinished) → confidence: HIGH"
+                        - generic [ref=e1950]: "2. Input box re-enabled + text stable 3s → confidence: HIGH"
+                        - generic [ref=e1952]: "3. Stop button disappeared + text stable 2s → confidence: MEDIUM"
+                        - generic [ref=e1954]: "4. Text stable 5s (adaptive, thinking-aware) → confidence: MEDIUM"
+                        - generic [ref=e1956]: "5. Hard timeout (120s) → confidence: LOW"
+                  - separator [ref=e1961]
+                  - 'heading "3. IMPLEMENT: Production Code" [level=2] [ref=e1962]'
+                  - heading [level=3] [ref=e1963]:
+                    - text: 3a. The Injected Observer Script (string for
+                    - code [ref=e1964] [cursor=pointer]: Runtime.evaluate
+                    - text: )
+                  - generic [ref=e1965]:
+                    - text: This is the script that runs
+                    - emphasis [ref=e1966]: inside the page
+                    - text: . It's a self-contained IIFE that sets up observation and exposes a polling interface.
+                  - generic [ref=e1967]:
+                    - generic [ref=e1968]: js
+                    - code [ref=e1984]:
+                      - generic [ref=e1985]:
+                        - textbox "Editor content" [ref=e1986]
+                        - textbox [ref=e1987]
+                        - generic [ref=e1989]:
+                          - generic [ref=e1990]: "334"
+                          - generic [ref=e1992]: "335"
+                          - generic [ref=e1994]: "336"
+                          - generic [ref=e1996]: "337"
+                        - generic [ref=e2003]:
+                          - generic [ref=e2005]: return 'observer_script_loaded';
+                          - generic [ref=e2007]: "})()"
+                          - generic [ref=e2009]: "`;"
+                        - generic [ref=e2012]:
+                          - generic [ref=e3632]:
+                            - generic [ref=e3633]: "2"
+                            - generic [ref=e3634]: 
+                          - generic [ref=e2016]:
+                            - list:
+                              - listitem [ref=e3635]:
+                                - generic [ref=e3636]: "(function() {"
+                  - heading "3b. The Background Script Orchestrator" [level=3] [ref=e2021]
+                  - generic [ref=e2022]:
+                    - text: This lives in
+                    - code [ref=e2023] [cursor=pointer]: background.js
+                    - text: "and integrates with the existing codebase:"
+                  - generic [ref=e2024]:
+                    - generic [ref=e2025]: js
+                    - code [ref=e2041]:
+                      - generic [ref=e2042]:
+                        - textbox "Editor content" [ref=e2043]
+                        - textbox [ref=e2044]
+                        - generic [ref=e2046]:
+                          - generic [ref=e2047]: "338"
+                          - generic [ref=e2049]: "339"
+                          - generic [ref=e2051]: "340"
+                          - generic [ref=e2053]: "341"
+                        - generic [ref=e2060]:
+                          - generic [ref=e2061]: "}"
+                          - generic [ref=e2064]: return result;
+                          - generic [ref=e2066]: "}"
+                        - generic [ref=e2069]:
+                          - generic [ref=e3637]:
+                            - generic [ref=e3638]: "253"
+                            - generic [ref=e3639]: 
+                          - generic [ref=e2073]:
+                            - list:
+                              - listitem [ref=e3640]:
+                                - generic [ref=e3641]: "async function sendAndCaptureResponse(tabId, url, prompt, logger) {"
+                  - heading [level=3] [ref=e2078]:
+                    - text: 3c. Integration Point (modify
+                    - code [ref=e2079] [cursor=pointer]: sendToActivatedTab
+                    - text: )
+                  - generic [ref=e2080]:
+                    - text: The change to the existing code is minimal. In
+                    - code [ref=e2081] [cursor=pointer]: sendToActivatedTab
+                    - text: ", replace the \"send and verify\" block:"
+                  - generic [ref=e2082]:
+                    - generic [ref=e2083]: js
+                    - code [ref=e2099]:
+                      - generic [ref=e2100]:
+                        - textbox "Editor content"
+                        - textbox [ref=e2101]
+                        - generic [ref=e2103]:
+                          - generic [ref=e2104]: "1"
+                          - generic [ref=e2107]: "2"
+                          - generic [ref=e2109]: "3"
+                          - generic [ref=e2111]: "4"
+                          - generic [ref=e2113]: "5"
+                          - generic [ref=e2115]: "6"
+                          - generic [ref=e2117]: "7"
+                          - generic [ref=e2119]: "8"
+                          - generic [ref=e2121]: "9"
+                          - generic [ref=e2123]: "10"
+                        - generic [ref=e2137]:
+                          - generic [ref=e2138]: "// BEFORE (existing):"
+                          - generic [ref=e2140]: // await markInputElement(tabId);
+                          - generic [ref=e2142]: // await sendTextThenEnter(tabId, prompt);
+                          - generic [ref=e2144]: // const verification = await verifySend(tabId, url, logger);
+                          - generic [ref=e2147]: "// AFTER (new):"
+                          - generic [ref=e2149]: const captureResult = await sendAndCaptureResponse(tabId, url, prompt, logger);
+                          - generic [ref=e2151]: // captureResult now includes .response, .status, .completionMethod, etc.
+                          - generic [ref=e2153]: "// Merge into the existing result object:"
+                          - generic [ref=e2155]: Object.assign(result, captureResult);
+                  - generic [ref=e2159]:
+                    - text: The verification logic (URL change, input clearing) still runs as a
+                    - emphasis [ref=e2160]: pre-check
+                    - text: inside
+                    - code [ref=e2161] [cursor=pointer]: sendAndCaptureResponse
+                    - text: to confirm the prompt was actually sent before waiting 120s for a response. If verification fails, you skip the response wait entirely.
+                  - separator [ref=e2163]
+                  - 'heading "4. TRADE-OFFS: 90% vs 100%" [level=2] [ref=e2164]'
+                  - heading "What the 90% solution gets you (the code above):" [level=3] [ref=e2165]
+                  - list [ref=e2166]:
+                    - listitem [ref=e2167]: ✅ Works on ChatGPT, Claude, Gemini, DeepSeek, Mistral, Perplexity without per-site config
+                    - listitem [ref=e2168]: ✅ Handles streaming (SSE and chunked) and WebSocket
+                    - listitem [ref=e2169]: ✅ Handles reasoning models with long thinking pauses (adaptive stability window)
+                    - listitem [ref=e2170]: ✅ Handles virtual scrolling (network layer doesn't care about DOM recycling)
+                    - listitem [ref=e2171]: ✅ Survives service worker restarts (debugger session keeps worker alive)
+                    - listitem [ref=e2172]: ✅ Three extraction fallbacks (observer → sibling traversal → accumulator)
+                    - listitem [ref=e2173]: ✅ ~350 lines of new code
+                  - heading "What the remaining 10% requires:" [level=3] [ref=e2174]
+                  - generic [ref=e2175]:
+                    - img "Download" [ref=e2179] [cursor=pointer]
+                    - table [ref=e2183]:
+                      - rowgroup [ref=e2184]:
+                        - row [ref=e2185]:
+                          - columnheader "Edge Case" [ref=e2186]
+                          - columnheader "Why It's Hard" [ref=e2188]
+                          - columnheader "What It Costs" [ref=e2190]
+                      - rowgroup [ref=e2192]:
+                        - row [ref=e2193]:
+                          - cell "Sites that render responses as images (some multimodal UIs)" [ref=e2194]
+                          - cell "No text DOM node exists" [ref=e2196]
+                          - cell "OCR or canvas extraction — 200+ lines" [ref=e2198]
+                        - row [ref=e2200]:
+                          - cell "Sites using Shadow DOM (rare but exists)" [ref=e2201]
+                          - cell [ref=e2203]:
+                            - generic [ref=e2204]:
+                              - code [ref=e2205] [cursor=pointer]: document.querySelector
+                              - text: can't pierce shadow roots
+                          - cell "Recursive shadow root walker — 50 lines" [ref=e2206]
+                        - row [ref=e2208]:
+                          - cell "Sites that split one response across 3+ network requests (chunked API calls)" [ref=e2209]
+                          - cell [ref=e2211]:
+                            - generic [ref=e2212]:
+                              - code [ref=e2213] [cursor=pointer]: loadingFinished
+                              - text: fires after each chunk, not the final one
+                          - cell "Request-counting heuristic per site — 20 lines/site" [ref=e2214]
+                        - row [ref=e2216]:
+                          - cell "Responses that trigger page navigation (e.g., \"I'll search for that\" → redirects)" [ref=e2217]
+                          - cell "Tab URL changes, page context destroyed" [ref=e2219]
+                          - cell "Pre-navigation snapshot + new-page extraction — 100 lines" [ref=e2221]
+                        - row [ref=e2223]:
+                          - cell [ref=e2224]:
+                            - generic [ref=e2225]:
+                              - text: Sites with aggressive CSP that block
+                              - code [ref=e2226] [cursor=pointer]: Runtime.evaluate
+                              - text: injection
+                          - cell "The observer script won't load" [ref=e2227]
+                          - cell [ref=e2229]:
+                            - generic [ref=e2230]:
+                              - text: Fall back to
+                              - code [ref=e2231] [cursor=pointer]: chrome.scripting.executeScript
+                              - text: (content script world) — 30 lines
+                        - row [ref=e2232]:
+                          - cell "Concurrent conversations (user sends message while AI is still replying to a previous one)" [ref=e2233]
+                          - cell "\"Last message\" is ambiguous" [ref=e2235]
+                          - cell "Message-ID tracking via DOM attributes — 40 lines" [ref=e2237]
+                  - heading "My recommendation:" [level=3] [ref=e2239]
+                  - generic [ref=e2240]:
+                    - text: Ship the 90% solution. Add a
+                    - code [ref=e2241] [cursor=pointer]: SITE_HINTS
+                    - text: "registry for the 2-3 sites where you observe failures in testing. Each hint is 3-5 lines:"
+                  - generic [ref=e2242]:
+                    - generic [ref=e2243]: js
+                    - code [ref=e2259]:
+                      - generic [ref=e2260]:
+                        - textbox "Editor content"
+                        - textbox [ref=e2261]
+                        - generic [ref=e2263]:
+                          - generic [ref=e2264]:
+                            - generic [ref=e2266] [cursor=pointer]: 
+                            - generic [ref=e2267]: "1"
+                          - generic [ref=e2268]:
+                            - generic [ref=e2269] [cursor=pointer]: 
+                            - generic [ref=e2270]: "2"
+                          - generic [ref=e2271]: "3"
+                          - generic [ref=e2273]: "4"
+                          - generic [ref=e2275]: "5"
+                          - generic [ref=e2277]: "6"
+                          - generic [ref=e2279]:
+                            - generic [ref=e2280] [cursor=pointer]: 
+                            - generic [ref=e2281]: "7"
+                          - generic [ref=e2282]: "8"
+                          - generic [ref=e2284]: "9"
+                          - generic [ref=e2286]: "10"
+                          - generic [ref=e2288]: "11"
+                          - generic [ref=e2290]:
+                            - generic [ref=e2291] [cursor=pointer]: 
+                            - generic [ref=e2292]: "12"
+                          - generic [ref=e2293]: "13"
+                          - generic [ref=e2295]: "14"
+                          - generic [ref=e2297]: "15"
+                          - generic [ref=e2299]: "16"
+                          - generic [ref=e2301]: "17"
+                        - generic [ref=e2322]:
+                          - generic [ref=e2323]: "const SITE_HINTS = {"
+                          - generic [ref=e2325]: "'chatgpt.com': {"
+                          - generic [ref=e2327]: "responseSelector: '[data-message-author-role=\"assistant\"]:last-of-type',"
+                          - generic [ref=e2329]: "usesShadowDom: false,"
+                          - generic [ref=e2331]: "streamType: 'sse'"
+                          - generic [ref=e2333]: "},"
+                          - generic [ref=e2335]: "'claude.ai': {"
+                          - generic [ref=e2337]: "responseSelector: '.font-claude-message:last-of-type',"
+                          - generic [ref=e2339]: "inputSelector: '[contenteditable=\"true\"]',"
+                          - generic [ref=e2341]: "streamType: 'sse'"
+                          - generic [ref=e2343]: "},"
+                          - generic [ref=e2345]: "'gemini.google.com': {"
+                          - generic [ref=e2347]: "responseSelector: '.model-response-text',"
+                          - generic [ref=e2349]: "streamType: 'websocket', // sometimes"
+                          - generic [ref=e2351]: "thinkingPauseMs: 15000 // Gemini's thinking can pause long"
+                          - generic [ref=e2353]: "}"
+                          - generic [ref=e2355]: "};"
+                  - generic [ref=e2359]: This gets you to 97% with 15 lines of config. The last 3% (image responses, shadow DOM, concurrent conversations) isn't worth the complexity unless you have a specific user need.
+                  - separator [ref=e2361]
+                  - heading "5. MV3-SPECIFIC CONCERNS" [level=2] [ref=e2362]
+                  - heading "Service Worker Lifecycle" [level=3] [ref=e2363]
+                  - generic [ref=e2364]: "The biggest risk: MV3 service workers are killed after ~30s of inactivity. Your response wait can be 120s."
+                  - strong [ref=e2366]: "Mitigations already in the code:"
+                  - list [ref=e2367]:
+                    - listitem [ref=e2368]: The debugger is attached for the entire duration. In practice, Chrome does not kill a service worker with an active debugger session. This is your primary keepalive.
+                    - listitem [ref=e2369]:
+                      - code [ref=e2370] [cursor=pointer]: chrome.debugger.onEvent
+                      - text: listener registration counts as "activity" for the worker lifecycle.
+                  - strong [ref=e2372]:
+                    - text: Additional safety net (add to
+                    - code [ref=e2373] [cursor=pointer]: runAutomation
+                    - text: "):"
+                  - generic [ref=e2374]:
+                    - generic [ref=e2375]: js
+                    - code [ref=e2391]:
+                      - generic [ref=e2392]:
+                        - textbox "Editor content"
+                        - textbox [ref=e2393]
+                        - generic [ref=e2395]:
+                          - generic [ref=e2396]: "1"
+                          - generic [ref=e2399]:
+                            - generic [ref=e2400] [cursor=pointer]: 
+                            - generic [ref=e2401]: "2"
+                          - generic [ref=e2402]: "3"
+                          - generic [ref=e2404]: "4"
+                          - generic [ref=e2406]:
+                            - generic [ref=e2407] [cursor=pointer]: 
+                            - generic [ref=e2408]: "5"
+                          - generic [ref=e2409]: "6"
+                          - generic [ref=e2411]: "7"
+                          - generic [ref=e2413]:
+                            - generic [ref=e2414] [cursor=pointer]: 
+                            - generic [ref=e2415]: "8"
+                          - generic [ref=e2416]:
+                            - generic [ref=e2417] [cursor=pointer]: 
+                            - generic [ref=e2418]: "9"
+                          - generic [ref=e2419]: "10"
+                          - generic [ref=e2421]: "11"
+                          - generic [ref=e2423]: "12"
+                          - generic [ref=e2425]: "13"
+                        - generic [ref=e2442]:
+                          - generic [ref=e2443]: // Keepalive alarm — prevents worker death during long waits
+                          - generic [ref=e2445]: "async function startKeepalive() {"
+                          - generic [ref=e2447]: "await chrome.alarms.create('autoprompt-keepalive', { periodInMinutes: 0.4 }); // every 24s"
+                          - generic [ref=e2449]: "}"
+                          - generic [ref=e2451]: "async function stopKeepalive() {"
+                          - generic [ref=e2453]: await chrome.alarms.clear('autoprompt-keepalive');
+                          - generic [ref=e2455]: "}"
+                          - generic [ref=e2457]: "chrome.alarms.onAlarm.addListener((alarm) => {"
+                          - generic [ref=e2459]: "if (alarm.name === 'autoprompt-keepalive') {"
+                          - generic [ref=e2461]: // No-op. The alarm's existence keeps the worker registered.
+                          - generic [ref=e2463]: // Chrome won't kill a worker that has a pending alarm callback.
+                          - generic [ref=e2465]: "}"
+                          - generic [ref=e2467]: "});"
+                  - generic [ref=e2471]:
+                    - text: Add
+                    - code [ref=e2472] [cursor=pointer]: "\"alarms\""
+                    - text: to the
+                    - code [ref=e2473] [cursor=pointer]: permissions
+                    - text: array in
+                    - code [ref=e2474] [cursor=pointer]: manifest.json
+                    - text: .
+                  - heading "CDP Command Rate Limits" [level=3] [ref=e2475]
+                  - generic [ref=e2476]:
+                    - text: Chrome throttles
+                    - code [ref=e2477] [cursor=pointer]: Runtime.evaluate
+                    - text: calls to roughly 100/s per tab. Our polling is 800ms intervals — well within limits. The injected observer does its own 500ms
+                    - code [ref=e2478] [cursor=pointer]: setInterval
+                    - emphasis [ref=e2479]: inside the page
+                    - text: ", which doesn't count against CDP limits."
+                  - heading [level=3] [ref=e2480]:
+                    - code [ref=e2481] [cursor=pointer]: chrome.scripting.executeScript
+                    - text: vs
+                    - code [ref=e2482] [cursor=pointer]: Runtime.evaluate
+                  - generic [ref=e2483]:
+                    - text: The existing codebase uses
+                    - code [ref=e2484] [cursor=pointer]: chrome.scripting.executeScript
+                    - text: for DOM queries. For Part 2, I deliberately switched to
+                    - code [ref=e2485] [cursor=pointer]: Runtime.evaluate
+                    - text: "for two reasons:"
+                  - list [ref=e2486]:
+                    - listitem [ref=e2487]:
+                      - strong [ref=e2488]: The observer must persist across multiple calls.
+                      - code [ref=e2489] [cursor=pointer]: executeScript
+                      - text: runs in an isolated world that's garbage-collected.
+                      - code [ref=e2490] [cursor=pointer]: Runtime.evaluate
+                      - text: runs in the page's main world, where
+                      - code [ref=e2491] [cursor=pointer]: window.__autoprompt_*
+                      - text: survives.
+                    - listitem [ref=e2492]:
+                      - strong [ref=e2493]:
+                        - code [ref=e2494] [cursor=pointer]: awaitPromise
+                        - text: and complex expressions
+                      - text: are easier to express in a single
+                      - code [ref=e2495] [cursor=pointer]: Runtime.evaluate
+                      - text: call than in the structured
+                      - code [ref=e2496] [cursor=pointer]: executeScript
+                      - text: API.
+                  - generic [ref=e2497]:
+                    - text: "The trade-off:"
+                    - code [ref=e2498] [cursor=pointer]: Runtime.evaluate
+                    - text: runs in the page's JS context, meaning the page
+                    - emphasis [ref=e2499]: could
+                    - text: theoretically interfere with
+                    - code [ref=e2500] [cursor=pointer]: window.__autoprompt_*
+                    - text: . In practice, no AI chat site enumerates or overwrites unknown
+                    - code [ref=e2501] [cursor=pointer]: window
+                    - text: properties. If you're paranoid, prefix with a random nonce per session.
+                  - heading "Debugger Detach on Tab Close" [level=3] [ref=e2502]
+                  - generic [ref=e2503]:
+                    - text: If the user closes a tab mid-response,
+                    - code [ref=e2504] [cursor=pointer]: chrome.debugger.onEvent
+                    - text: fires a
+                    - code [ref=e2505] [cursor=pointer]: Debugger.detached
+                    - text: "event. Add a listener:"
+                  - generic [ref=e2506]:
+                    - generic [ref=e2507]: js
+                    - code [ref=e2523]:
+                      - generic [ref=e2524]:
+                        - textbox "Editor content"
+                        - textbox [ref=e2525]
+                        - generic [ref=e2527]:
+                          - generic [ref=e2528]:
+                            - generic [ref=e2530] [cursor=pointer]: 
+                            - generic [ref=e2531]: "1"
+                          - generic [ref=e2532]:
+                            - generic [ref=e2533] [cursor=pointer]: 
+                            - generic [ref=e2534]: "2"
+                          - generic [ref=e2535]: "3"
+                          - generic [ref=e2537]: "4"
+                          - generic [ref=e2539]: "5"
+                          - generic [ref=e2541]: "6"
+                        - generic [ref=e2551]:
+                          - generic [ref=e2552]: "chrome.debugger.onDetach.addListener((source, reason) => {"
+                          - generic [ref=e2554]: "if (reason === 'target_closed') {"
+                          - generic [ref=e2556]: "logger.log(source.tabId, 'Debugger detached: tab closed — aborting response wait');"
+                          - generic [ref=e2558]: // Resolve any pending promises for this tab with an error
+                          - generic [ref=e2560]: "}"
+                          - generic [ref=e2562]: "});"
+                  - separator [ref=e2567]
+                  - heading "Final Word" [level=2] [ref=e2568]
+                  - generic [ref=e2569]:
+                    - text: "The architecture is:"
+                    - strong [ref=e2570]: Network tells you when. DOM tells you what. Multiple fallbacks ensure you always get something.
+                    - text: The injected observer is the workhorse — it lives in the page, watches mutations, scores candidates, and self-terminates. The background script is the conductor — it starts the network watcher, sends the prompt, races two completion signals, extracts the text, and cleans up.
+                  - generic [ref=e2571]:
+                    - text: You built a 1400-line Part 1 that handles Chrome's input pipeline, focus stealing, stealth spoofing, and three-stage verification. Part 2 is genuinely simpler than that. The code above is ~350 lines of new logic plus the injected observer string. It slots into your existing
+                    - code [ref=e2572] [cursor=pointer]: sendToActivatedTab
+                    - text: with a 3-line change. Ship it, test it on your 6 sites, and add
+                    - code [ref=e2573] [cursor=pointer]: SITE_HINTS
+                    - text: entries only where you observe failures.
+              - generic [ref=e2577]:
+                - button "Copy" [ref=e2578] [cursor=pointer]
+                - button "Good Response" [ref=e2582] [cursor=pointer]
+                - button "Bad Response" [ref=e2586] [cursor=pointer]
+                - button "Share" [ref=e2590] [cursor=pointer]
+                - button "Regenerate" [ref=e2594] [cursor=pointer]
+                - button "More actions" [ref=e2598] [cursor=pointer]
+            - generic [ref=e2608]:
+              - paragraph [ref=e2609]: "ROUND 3: FINAL SYNTHESIS — The \"Signal-Driven Answer Reader\" Plan I received 5 architectural proposals (Qwen, Z.ai/GLM-5.2, Gemini, Kimi, DeepSeek). Perplexity refused. Now I have synthesized the strongest ideas into one unified plan. I need you to CRITIQUE this plan mercilessly, then propose your final refinements. == THE SYNTHESIZED PLAN == ### Execution Model - Mechanism: CDP Runtime.evaluate with awaitPromise:true, returning by value. Consensus: DeepSeek's pattern was adopted by everyone. No chrome.scripting dependency. - Lifecycle: Attach debugger → inject observer → send prompt → await promise → extract → detach. ### Observer Injection (Pre-Send) - When: Injected via CDP Runtime.evaluate BEFORE Input.insertText, while debugger is already attached. - What: A MutationObserver on document.body (childList + subtree + characterData) that builds a candidate map. - Why: Kimi correctly identified that pre-injection captures the very first mutations of the response, avoiding race conditions. ### Candidate Scoring (Element Identification) - Scoring factors (normalized, best candidate wins): - Text length (log-scaled, cap at 3000) - Growth rate (chars/sec over last 2s window, ×40 weight) - Vertical position (bottom 25-75% of viewport = +600, penalize top 100px) - Width > 300px and height > 50px bonuses - Recency penalty (−0.5 per ms since last mutation) - Mutation count penalty (−2 per mutation, to penalize spinners/loading indicators) - Fingerprint: TagName + rounded (x,y) position. Candidate Map keyed by fingerprint. - Output: Each poll returns the highest-scored candidate's text and metadata. ### Completion Detection (Multi-Signal Circuit) - Signal 1 — Text Stability (PRIMARY): Best candidate textLength unchanged for 3 seconds. Adaptive: if candidate text contains \"thinking\" or \"reasoning\", extend to 6s. - Signal 2 — Input Re-enabled (HIGH): The data-autoprompt-input element is no longer disabled/readonly. Gemini identified this as the most universal binary signal. - Signal 3 — Stop Button Gone (MEDIUM): No visible button matching /stop|halt|generate/i. Z.ai contribution. - Signal 4 — Hard Timeout (LOW): 90s absolute max. Return whatever we have. - Circuit logic: Signal 1 AND (Signal 2 OR Signal 3) = COMPLETE. If Signal 1 alone for 8s, also COMPLETE with partial warning. ### Extraction Strategy - Primary: Best candidate innerText with cleanup (strip buttons, SVGs, nav elements via cloneNode). - Fallback 1 (low candidate score): Delta diff — body.innerText before/after, lastIndexOf(prompt) as anchor. - Fallback 2 (prompt found in DOM): TreeWalker to prompt text node → parent container → subsequent sibling (DeepSeek approach). - Output: { text, html, wordCount, confidence: high|medium|low } ### MV3 Considerations - Debugger attachment keeps worker alive. - onDetach listener to abort watcher gracefully. - observer.disconnect() and cleanup on resolve. - Tab crash → promise rejects → caught → cleanup → status = error. ### Shadow DOM - Initial: IGNORE shadow roots (95% coverage). - Future: Recursive shadowRoot walker. - Targeting light DOM only. ### CDP Network Layer - EXCLUDED from base plan. Too fragile per-site SSE/WebSocket schema knowledge required. - Reserved as optional accelerator for known domains. == YOUR TASK == 1. CRITIQUE: What is STILL wrong or missing? Identify contradictions, race conditions, blind spots. 2. REFINE: For EACH section above, tell me exactly what to change and why. 3. FINAL CODE: Write complete injectResponseWatcher.js — the string for Runtime.evaluate. Include: MutationObserver, scoring, completion detection with all signals, extraction with fallbacks, cleanup. 4. TRADE-OFF ACKNOWLEDGMENT: For every compromise, state what edge case it misses. Be blunt. Tear the plan apart."
+              - button "Expand" [ref=e2610] [cursor=pointer]
+            - generic [ref=e2619]:
+              - generic [ref=e2620]:
+                - generic [ref=e2621]: Thinking completed
+                - generic [ref=e2637]:
+                  - 'heading "Round 3: Merciless Critique + Final Implementation" [level=1] [ref=e2638]'
+                  - separator [ref=e2640]
+                  - 'heading "1. CRITIQUE: What''s Still Wrong" [level=2] [ref=e2641]'
+                  - heading "The Execution Model is a Single Point of Failure" [level=3] [ref=e2642]
+                  - generic [ref=e2643]:
+                    - text: The plan adopted DeepSeek's
+                    - code [ref=e2644] [cursor=pointer]: "awaitPromise: true"
+                    - text: pattern as consensus.
+                    - strong [ref=e2645]: This is the most dangerous decision in the document.
+                    - text: "You are wrapping a 90-second asynchronous observation lifecycle inside a single CDP call that blocks the background script's execution context. Here's what kills you:"
+                  - list [ref=e2646]:
+                    - listitem [ref=e2647]:
+                      - strong [ref=e2648]: Tab navigation.
+                      - text: "If the site does a client-side route change (ChatGPT does this:"
+                      - code [ref=e2649] [cursor=pointer]: /c/uuid
+                      - text: →
+                      - code [ref=e2650] [cursor=pointer]: /c/uuid
+                      - text: with a full re-render), the JavaScript context is destroyed. Your promise rejects with
+                      - code [ref=e2651] [cursor=pointer]: Execution context was destroyed
+                      - text: . You get nothing. No partial text. No cleanup. The observer is gone.
+                    - listitem [ref=e2652]:
+                      - strong [ref=e2653]: Uncaught exception in the observer.
+                      - text: If your MutationObserver callback throws (and it will, on some edge-case DOM node), the promise rejects immediately. You lose 45 seconds of accumulated observation.
+                    - listitem [ref=e2654]:
+                      - strong [ref=e2655]: Service worker termination.
+                      - text: Yes, the debugger
+                      - emphasis [ref=e2656]: currently
+                      - text: keeps the worker alive. But
+                      - code [ref=e2657] [cursor=pointer]: awaitPromise
+                      - text: means the worker is
+                      - emphasis [ref=e2658]: blocked waiting on a CDP response
+                      - text: . If Chrome's internal watchdog decides the worker is unresponsive (it can't process other messages while blocked), it can force-kill. You now have a detached debugger, a dead worker, and an orphaned tab.
+                    - listitem [ref=e2659]:
+                      - strong [ref=e2660]: No progress visibility.
+                      - text: For 90 seconds, your background script knows
+                      - emphasis [ref=e2661]: nothing
+                      - text: . Is the response streaming? Did it stall? Is the model thinking? You can't log, can't update the popup, can't abort gracefully. You're blind.
+                  - generic [ref=e2662]:
+                    - strong [ref=e2663]: The correct pattern is inject-then-poll.
+                    - text: Inject the observer with a fire-and-forget
+                    - code [ref=e2664] [cursor=pointer]: Runtime.evaluate
+                    - text: . Then poll it every 800ms with short, non-blocking
+                    - code [ref=e2665] [cursor=pointer]: Runtime.evaluate
+                    - text: calls. Each poll is a 2ms round-trip. If one fails, you retry. If the worker restarts, you re-attach and resume polling. You never block for more than 1 second.
+                  - heading "The Scoring Has Two Fatal Math Errors" [level=3] [ref=e2666]
+                  - strong [ref=e2668]: "\"Recency penalty: −0.5 per ms since last mutation.\""
+                  - generic [ref=e2669]: After a 3-second thinking pause, that's −1,500 points. After 5 seconds, −2,500. Your best candidate — the actual response container that's about to receive the next chunk — gets annihilated in the scoring. Meanwhile, a sidebar timestamp that updated 200ms ago (−100 penalty) overtakes it. You'll lock onto the wrong element during every reasoning model's thinking phase.
+                  - generic [ref=e2670]:
+                    - text: The penalty should be
+                    - strong [ref=e2671]: zero
+                    - text: for the first 8 seconds of silence, then gentle. A response container that went quiet 3 seconds ago is almost certainly still the right target.
+                  - strong [ref=e2673]: "\"Mutation count penalty: −2 per mutation.\""
+                  - generic [ref=e2674]:
+                    - text: A rich 800-word response with code blocks, bold text, and lists generates 300-500 mutations (each text node insertion, each element wrap). That's −600 to −1000 points. A loading spinner that rotates via CSS animation triggers 0 mutations (it's a CSS transform, not a DOM change). A "Thinking..." indicator that pulses via
+                    - code [ref=e2675] [cursor=pointer]: setInterval
+                    - text: updating a text node triggers maybe 30 mutations (−60). Your penalty system punishes the
+                    - emphasis [ref=e2676]: correct
+                    - text: answer for being richly formatted.
+                  - generic [ref=e2677]:
+                    - text: The penalty should target
+                    - strong [ref=e2678]: high mutation count with low text growth
+                    - text: ", not raw mutation count. The ratio matters, not the absolute."
+                  - heading "The Fingerprint Breaks on Scroll" [level=3] [ref=e2679]
+                  - generic [ref=e2680]:
+                    - text: "\"TagName + rounded (x,y) position\" as the candidate map key. Chat UIs"
+                    - strong [ref=e2681]: auto-scroll during streaming
+                    - text: . Every time the container scrolls, every candidate's
+                    - code [ref=e2682] [cursor=pointer]: getBoundingClientRect().y
+                    - text: changes. Your rounded y-coordinate shifts. The fingerprint no longer matches. The candidate map creates a
+                    - emphasis [ref=e2683]: new entry
+                    - text: for the same element. You lose all accumulated growth history. Scoring resets. You're starting from zero every scroll event.
+                  - generic [ref=e2684]:
+                    - text: Use a
+                    - strong [ref=e2685]: WeakRef to the element itself
+                    - text: as the map key, or assign a
+                    - code [ref=e2686] [cursor=pointer]: data-autoprompt-cid
+                    - text: attribute on first sight and key by that.
+                  - heading "The Completion Circuit Has a Deadlock Path" [level=3] [ref=e2687]
+                  - generic [ref=e2688]: "\"Signal 1 AND (Signal 2 OR Signal 3) = COMPLETE.\""
+                  - generic [ref=e2689]: "Consider a site that:"
+                  - list [ref=e2690]:
+                    - listitem [ref=e2691]: Doesn't disable the input during generation (some lightweight chat UIs don't)
+                    - listitem [ref=e2692]:
+                      - text: Has no stop button (or the stop button is an SVG icon with no text/aria-label matching
+                      - code [ref=e2693] [cursor=pointer]: /stop|halt|generate/i
+                      - text: )
+                  - generic [ref=e2694]:
+                    - text: Signal 2 = false. Signal 3 = false. The circuit requires Signal 1 AND (false OR false) =
+                    - strong [ref=e2695]: never
+                    - text: . You fall through to the "Signal 1 alone for 8s" fallback. That's an unnecessary 5-second delay on every response from these sites. Multiply by 6 sites in parallel and you've added 30 seconds of dead time to every run.
+                  - generic [ref=e2696]:
+                    - text: "The circuit should be:"
+                    - strong [ref=e2697]: (Signal 1 AND Signal 2) OR (Signal 1 AND Signal 3) OR (Signal 1 for extended duration) OR (Signal 2 AND text > 50 chars)
+                    - text: . Signal 2 alone (input re-enabled) with substantial text present is sufficient. You don't need stability
+                    - emphasis [ref=e2698]: and
+                    - text: input re-enablement — input re-enablement IS the site telling you it's done.
+                  - heading "The \"Thinking\" Detection is Content-Based, Not State-Based" [level=3] [ref=e2699]
+                  - generic [ref=e2700]: "\"if candidate text contains 'thinking' or 'reasoning', extend to 6s.\""
+                  - generic [ref=e2701]:
+                    - text: "The model's response might say:"
+                    - emphasis [ref=e2702]: "\"I was thinking about your question, and here's my reasoning...\""
+                    - text: You just extended the stability window because the
+                    - emphasis [ref=e2703]: answer
+                    - text: contains those words. Meanwhile, the actual thinking indicator (a "Thinking..." label, a pulsing dot, a
+                    - code [ref=e2704] [cursor=pointer]: <span class="thinking">
+                    - text: ) is a
+                    - emphasis [ref=e2705]: separate element
+                    - text: that you're not checking.
+                  - generic [ref=e2706]:
+                    - text: Check for thinking
+                    - strong [ref=e2707]: indicators
+                    - text: (elements with class/aria matching
+                    - code [ref=e2708] [cursor=pointer]: /think|reason|analyz|process/i
+                    - text: that are
+                    - emphasis [ref=e2709]: visible
+                    - text: ), not response content.
+                  - heading "Excluding the Network Layer is the Biggest Mistake" [level=3] [ref=e2710]
+                  - generic [ref=e2711]: "The plan says: \"Too fragile per-site SSE/WebSocket schema knowledge required.\""
+                  - generic [ref=e2712]:
+                    - strong [ref=e2713]: You don't need schema knowledge.
+                    - text: You don't parse the SSE payload. You don't decode the WebSocket frames. You don't care what's
+                    - emphasis [ref=e2714]: in
+                    - text: "the stream. You watch for one thing:"
+                    - code [ref=e2715] [cursor=pointer]: Network.loadingFinished
+                    - text: on a response whose MIME type is
+                    - code [ref=e2716] [cursor=pointer]: text/event-stream
+                    - text: or whose URL matches
+                    - code [ref=e2717] [cursor=pointer]: /chat|complet|convers|generat|stream/
+                    - text: . That's it. The TCP connection closing is a site-agnostic, schema-agnostic, universally reliable signal that the server is done sending data.
+                  - generic [ref=e2718]:
+                    - text: By excluding this, you've made your completion detection 100% heuristic. Every other signal (text stability, input state, stop button) is a
+                    - emphasis [ref=e2719]: proxy
+                    - text: for "the server stopped sending data." You have access to the
+                    - emphasis [ref=e2720]: actual
+                    - text: signal and you chose not to use it. This is like navigating by dead reckoning when you have GPS.
+                  - generic [ref=e2721]:
+                    - text: The network layer isn't an "optional accelerator." It's the
+                    - strong [ref=e2722]: primary completion signal
+                    - text: . DOM heuristics are the fallback for when it's unavailable (WebSocket-only sites, service-worker-intercepted requests).
+                  - heading "Minor Issues" [level=3] [ref=e2723]
+                  - list [ref=e2724]:
+                    - listitem [ref=e2725]:
+                      - strong [ref=e2726]: "\"strip buttons, SVGs, nav elements via cloneNode\""
+                      - text: —
+                      - code [ref=e2727] [cursor=pointer]: cloneNode(true)
+                      - text: on a 2000-node response subtree allocates a full copy in memory, then you walk it. On a page already under memory pressure (6 tabs open), this is wasteful. Use a
+                      - code [ref=e2728] [cursor=pointer]: TreeWalker
+                      - text: with a filter that skips
+                      - code [ref=e2729] [cursor=pointer]: BUTTON, SVG, NAV, [role="toolbar"]
+                      - text: nodes. Zero allocation.
+                    - listitem [ref=e2730]:
+                      - strong [ref=e2731]: "\"body.innerText before/after\" for delta diff"
+                      - text: — Reading
+                      - code [ref=e2732] [cursor=pointer]: innerText
+                      - text: forces a synchronous layout recalculation. On a complex page, this is 10-50ms of jank. Doing it "before" (to snapshot) means you're causing jank
+                      - emphasis [ref=e2733]: right before sending the prompt
+                      - text: ", which could interfere with the site's input handling. Use"
+                      - code [ref=e2734] [cursor=pointer]: textContent
+                      - text: instead (no layout trigger) or skip the snapshot entirely and rely on the observer's candidate tracking.
+                    - listitem [ref=e2735]:
+                      - strong [ref=e2736]:
+                        - text: No mention of
+                        - code [ref=e2737] [cursor=pointer]: chrome.alarms
+                        - text: keepalive.
+                      - text: "\"Debugger attachment keeps worker alive\" is an implementation detail, not a contract. Add a 20-second alarm as a backup."
+                  - separator [ref=e2739]
+                  - 'heading "2. REFINE: Section-by-Section Changes" [level=2] [ref=e2740]'
+                  - heading "Execution Model → CHANGE COMPLETELY" [level=3] [ref=e2741]
+                  - generic [ref=e2742]:
+                    - img "Download" [ref=e2746] [cursor=pointer]
+                    - table [ref=e2750]:
+                      - rowgroup [ref=e2751]:
+                        - row [ref=e2752]:
+                          - columnheader "Plan Says" [ref=e2753]
+                          - columnheader "Change To" [ref=e2755]
+                          - columnheader "Why" [ref=e2757]
+                      - rowgroup [ref=e2759]:
+                        - row [ref=e2760]:
+                          - cell [ref=e2761]:
+                            - generic [ref=e2762]:
+                              - text: Single
+                              - code [ref=e2763] [cursor=pointer]: awaitPromise:true
+                              - text: call
+                          - cell "Inject (fire-and-forget) + poll every 800ms" [ref=e2764]
+                          - cell "Survives tab navigation, worker restart, exceptions" [ref=e2766]
+                        - row [ref=e2768]:
+                          - cell "Blocking background script" [ref=e2769]
+                          - cell "Non-blocking; each poll is 2ms" [ref=e2771]
+                          - cell "Popup stays responsive, logging works, abort possible" [ref=e2773]
+                        - row [ref=e2775]:
+                          - cell "No progress visibility" [ref=e2776]
+                          - cell "Each poll returns phase/candidate/length" [ref=e2778]
+                          - cell "Can update popup UI in real-time" [ref=e2780]
+                  - heading "Candidate Scoring → FIX THE MATH" [level=3] [ref=e2782]
+                  - generic [ref=e2783]:
+                    - img "Download" [ref=e2787] [cursor=pointer]
+                    - table [ref=e2791]:
+                      - rowgroup [ref=e2792]:
+                        - row [ref=e2793]:
+                          - columnheader "Plan Says" [ref=e2794]
+                          - columnheader "Change To" [ref=e2796]
+                          - columnheader "Why" [ref=e2798]
+                      - rowgroup [ref=e2800]:
+                        - row [ref=e2801]:
+                          - cell "−0.5 per ms since last mutation" [ref=e2802]
+                          - cell "0 penalty for first 10s, then −0.05/ms" [ref=e2804]
+                          - cell "Thinking pauses don't destroy the correct candidate" [ref=e2806]
+                        - row [ref=e2808]:
+                          - cell "−2 per mutation (absolute)" [ref=e2809]
+                          - cell [ref=e2811]:
+                            - generic [ref=e2812]:
+                              - text: −2 per mutation
+                              - emphasis [ref=e2813]: only if
+                              - text: text growth < 5 chars total
+                          - cell "Penalizes spinners, not rich responses" [ref=e2814]
+                        - row [ref=e2816]:
+                          - cell "Fingerprint = tag + (x,y)" [ref=e2817]
+                          - cell [ref=e2819]:
+                            - generic [ref=e2820]:
+                              - code [ref=e2821] [cursor=pointer]: data-autoprompt-cid
+                              - text: attribute (stable across scrolls)
+                          - cell "Auto-scroll doesn't break tracking" [ref=e2822]
+                        - row [ref=e2824]:
+                          - cell "Log-scaled text, cap 3000" [ref=e2825]
+                          - cell "Log-scaled text, cap 2000; add \"has markdown structure\" bonus (+200 for code blocks, lists, headers)" [ref=e2827]
+                          - cell "Rewards actual AI responses over plain-text UI" [ref=e2829]
+                  - heading "Completion Circuit → RESTRUCTURE" [level=3] [ref=e2831]
+                  - generic [ref=e2832]:
+                    - img "Download" [ref=e2836] [cursor=pointer]
+                    - table [ref=e2840]:
+                      - rowgroup [ref=e2841]:
+                        - row [ref=e2842]:
+                          - columnheader "Plan Says" [ref=e2843]
+                          - columnheader "Change To" [ref=e2845]
+                          - columnheader "Why" [ref=e2847]
+                      - rowgroup [ref=e2849]:
+                        - row [ref=e2850]:
+                          - cell "Signal 1 AND (Signal 2 OR Signal 3)" [ref=e2851]
+                          - cell "(Sig1 × Sig2) OR (Sig1 × Sig3) OR (Sig2 × text>50) OR (Sig1 × 8s) OR Network" [ref=e2853]
+                          - cell "No deadlock path; network is co-primary" [ref=e2855]
+                        - row [ref=e2857]:
+                          - cell "\"thinking\" in response text → 6s" [ref=e2858]
+                          - cell [ref=e2860]:
+                            - generic [ref=e2861]:
+                              - text: Visible thinking
+                              - emphasis [ref=e2862]: indicator element
+                              - text: → 8s
+                          - cell "State-based, not content-based" [ref=e2863]
+                        - row [ref=e2865]:
+                          - cell "90s hard timeout" [ref=e2866]
+                          - cell "120s hard timeout (reasoning models)" [ref=e2868]
+                          - cell "o3/Claude extended thinking can take 90s+" [ref=e2870]
+                        - row [ref=e2872]:
+                          - cell "No network signal" [ref=e2873]
+                          - cell [ref=e2875]:
+                            - generic [ref=e2876]:
+                              - text: Network
+                              - code [ref=e2877] [cursor=pointer]: loadingFinished
+                              - text: = instant "done" trigger (bypasses stability wait)
+                          - cell "Ground truth" [ref=e2878]
+                  - heading "Extraction → OPTIMIZE" [level=3] [ref=e2880]
+                  - generic [ref=e2881]:
+                    - img "Download" [ref=e2885] [cursor=pointer]
+                    - table [ref=e2889]:
+                      - rowgroup [ref=e2890]:
+                        - row [ref=e2891]:
+                          - columnheader "Plan Says" [ref=e2892]
+                          - columnheader "Change To" [ref=e2894]
+                          - columnheader "Why" [ref=e2896]
+                      - rowgroup [ref=e2898]:
+                        - row [ref=e2899]:
+                          - cell "cloneNode + strip" [ref=e2900]
+                          - cell "TreeWalker with node filter" [ref=e2902]
+                          - cell "Zero allocation, no layout thrash" [ref=e2904]
+                        - row [ref=e2906]:
+                          - cell "body.innerText snapshot" [ref=e2907]
+                          - cell "Skip; use observer's candidate text directly" [ref=e2909]
+                          - cell "No forced layout, no memory bloat" [ref=e2911]
+                        - row [ref=e2913]:
+                          - cell "Delta diff as Fallback 1" [ref=e2914]
+                          - cell "Move to Fallback 2; make sibling traversal Fallback 1" [ref=e2916]
+                          - cell "Sibling traversal is cheaper and more reliable" [ref=e2918]
+                  - heading "Network Layer → REINSTATE AS CO-PRIMARY" [level=3] [ref=e2920]
+                  - generic [ref=e2921]:
+                    - text: Not optional. Not an accelerator. Runs in parallel with the DOM observer from the moment the prompt is sent. If it fires
+                    - code [ref=e2922] [cursor=pointer]: loadingFinished
+                    - text: ", it sets a flag that the poll loop reads. If it's unavailable (WebSocket-only, SW-intercepted), the DOM heuristics carry the load alone."
+                  - separator [ref=e2924]
+                  - heading "3. FINAL CODE" [level=2] [ref=e2925]
+                  - heading [level=3] [ref=e2926]:
+                    - code [ref=e2927] [cursor=pointer]: injectResponseWatcher.js
+                    - text: — The Injected Observer (string constant)
+                  - generic [ref=e2928]:
+                    - text: This is the complete, self-contained script injected via
+                    - code [ref=e2929] [cursor=pointer]: Runtime.evaluate
+                    - text: . It runs in the page's main world.
+                  - generic [ref=e2930]:
+                    - generic [ref=e2931]: js
+                    - code [ref=e2947]:
+                      - generic [ref=e2948]:
+                        - textbox "Editor content" [ref=e2949]
+                        - textbox [ref=e2950]
+                        - generic [ref=e2952]:
+                          - generic [ref=e2953]: "515"
+                          - generic [ref=e2955]: "516"
+                          - generic [ref=e2957]: "517"
+                          - generic [ref=e2959]: "518"
+                        - generic [ref=e2966]:
+                          - generic [ref=e2968]: return 'arw_installed';
+                          - generic [ref=e2970]: "})()"
+                          - generic [ref=e2972]: "`;"
+                        - generic [ref=e2975]:
+                          - generic [ref=e3646]:
+                            - generic [ref=e3647]: "2"
+                            - generic [ref=e3648]: 
+                          - generic [ref=e2979]:
+                            - list:
+                              - listitem [ref=e3649]:
+                                - generic [ref=e3650]: "(function() {"
+                  - heading [level=3] [ref=e2984]:
+                    - code [ref=e2985] [cursor=pointer]: responseWatcher.js
+                    - text: — Background Script Module
+                  - generic [ref=e2986]:
+                    - text: This integrates with the existing
+                    - code [ref=e2987] [cursor=pointer]: background.js
+                    - text: ":"
+                  - generic [ref=e2988]:
+                    - generic [ref=e2989]: js
+                    - code [ref=e3005]:
+                      - generic [ref=e3006]:
+                        - textbox "Editor content" [ref=e3007]
+                        - textbox [ref=e3008]
+                        - generic [ref=e3010]:
+                          - generic [ref=e3011]: "272"
+                          - generic [ref=e3013]: "273"
+                          - generic [ref=e3015]: "274"
+                          - generic [ref=e3017]: "275"
+                        - generic [ref=e3024]:
+                          - generic [ref=e3025]: "}"
+                          - generic [ref=e3028]: return result;
+                          - generic [ref=e3030]: "}"
+                        - generic [ref=e3033]:
+                          - generic [ref=e3651]:
+                            - generic [ref=e3652]: "179"
+                            - generic [ref=e3653]: 
+                          - generic [ref=e3037]:
+                            - list:
+                              - listitem [ref=e3654]:
+                                - generic [ref=e3655]: "async function sendAndRead(tabId, url, prompt, logger) {"
+                  - heading [level=3] [ref=e3042]:
+                    - code [ref=e3043] [cursor=pointer]: manifest.json
+                    - text: change
+                  - generic [ref=e3044]:
+                    - generic [ref=e3045]: json
+                    - code [ref=e3061]:
+                      - generic [ref=e3062]:
+                        - textbox "Editor content"
+                        - textbox [ref=e3063]
+                        - generic [ref=e3065]:
+                          - generic [ref=e3066]:
+                            - generic [ref=e3068] [cursor=pointer]: 
+                            - generic [ref=e3069]: "1"
+                          - generic [ref=e3070]: "2"
+                          - generic [ref=e3072]: "3"
+                          - generic [ref=e3074]: "4"
+                        - generic [ref=e3082]:
+                          - generic [ref=e3083]: "{"
+                          - generic [ref=e3658]: "\"permissions\": [\"tabs\", \"scripting\", \"debugger\", \"storage\", \"alarms\"],"
+                          - generic [ref=e3660]: ...
+                          - generic [ref=e3089]: "}"
+                  - heading [level=3] [ref=e3093]:
+                    - text: Keepalive (add to
+                    - code [ref=e3094] [cursor=pointer]: background.js
+                    - text: top-level)
+                  - generic [ref=e3095]:
+                    - generic [ref=e3096]: js
+                    - code [ref=e3112]:
+                      - generic [ref=e3113]:
+                        - textbox "Editor content"
+                        - textbox [ref=e3114]
+                        - generic [ref=e3116]:
+                          - generic [ref=e3117]: "1"
+                          - generic [ref=e3120]: "2"
+                          - generic [ref=e3122]: "3"
+                          - generic [ref=e3124]: "4"
+                          - generic [ref=e3126]: "5"
+                          - generic [ref=e3128]:
+                            - generic [ref=e3129] [cursor=pointer]: 
+                            - generic [ref=e3130]: "6"
+                          - generic [ref=e3131]:
+                            - generic [ref=e3132] [cursor=pointer]: 
+                            - generic [ref=e3133]: "7"
+                          - generic [ref=e3134]: "8"
+                          - generic [ref=e3136]: "9"
+                          - generic [ref=e3138]: "10"
+                          - generic [ref=e3140]: "11"
+                        - generic [ref=e3155]:
+                          - generic [ref=e3156]: "// MV3 keepalive: prevents service worker death during long response waits"
+                          - generic [ref=e3158]: "chrome.alarms.create('arw-keepalive', { periodInMinutes: 0.35 }); // ~21s"
+                          - generic [ref=e3160]: "chrome.alarms.onAlarm.addListener(() => { /* no-op; existence = keepalive */ });"
+                          - generic [ref=e3163]: // Graceful abort on debugger detach
+                          - generic [ref=e3165]: "chrome.debugger.onDetach.addListener((source, reason) => {"
+                          - generic [ref=e3167]: "if (reason === 'target_closed' || reason === 'canceled_by_user') {"
+                          - generic [ref=e3169]: "console.log(`[AI Chat Auto-Prompt] Debugger detached from tab ${source.tabId}: ${reason}`);"
+                          - generic [ref=e3171]: // Any pending waitForCompletion poll will fail on next iteration and return 'fatal'
+                          - generic [ref=e3173]: "}"
+                          - generic [ref=e3175]: "});"
+                  - separator [ref=e3180]
+                  - heading "4. TRADE-OFF ACKNOWLEDGMENTS" [level=2] [ref=e3181]
+                  - generic [ref=e3182]:
+                    - img "Download" [ref=e3186] [cursor=pointer]
+                    - table [ref=e3190]:
+                      - rowgroup [ref=e3191]:
+                        - row [ref=e3192]:
+                          - columnheader "Compromise" [ref=e3193]
+                          - columnheader "What It Misses" [ref=e3195]
+                          - columnheader "Severity" [ref=e3197]
+                          - columnheader "Mitigation" [ref=e3199]
+                      - rowgroup [ref=e3201]:
+                        - row [ref=e3202]:
+                          - cell [ref=e3203]:
+                            - strong [ref=e3205]: No Shadow DOM traversal
+                          - cell "Sites that render responses inside closed shadow roots (some Web Component-based UIs, potentially future Claude.ai)" [ref=e3206]
+                          - cell "Medium — maybe 5-10% of sites by 2027" [ref=e3208]
+                          - cell [ref=e3210]:
+                            - generic [ref=e3211]:
+                              - text: Add
+                              - code [ref=e3212] [cursor=pointer]: el.shadowRoot
+                              - text: recursion in
+                              - code [ref=e3213] [cursor=pointer]: findMessageContainer
+                              - text: when needed; 15 lines
+                        - row [ref=e3214]:
+                          - cell [ref=e3215]:
+                            - strong [ref=e3217]: Network layer detects stream MIME heuristically
+                          - cell [ref=e3218]:
+                            - generic [ref=e3219]:
+                              - text: Sites that serve streaming responses as
+                              - code [ref=e3220] [cursor=pointer]: application/json
+                              - text: with no
+                              - code [ref=e3221] [cursor=pointer]: "transfer-encoding: chunked"
+                              - text: header (some proxied setups)
+                          - cell "Low — rare in practice" [ref=e3222]
+                          - cell "DOM observer carries the load; network is bonus, not dependency" [ref=e3224]
+                        - row [ref=e3226]:
+                          - cell [ref=e3227]:
+                            - strong [ref=e3229]:
+                              - code [ref=e3230] [cursor=pointer]: data-arw-cid
+                              - text: attribute on DOM elements
+                          - cell [ref=e3231]:
+                            - generic [ref=e3232]:
+                              - text: Sites with aggressive DOM sanitizers that strip unknown
+                              - code [ref=e3233] [cursor=pointer]: data-*
+                              - text: attributes (very rare; no known AI chat site does this)
+                          - cell "Very low" [ref=e3234]
+                          - 'cell "Fallback: WeakRef map keyed by element reference (no attribute needed); slightly more complex GC handling" [ref=e3236]'
+                        - row [ref=e3238]:
+                          - cell [ref=e3239]:
+                            - strong [ref=e3241]: 120s hard timeout
+                          - cell "Models that genuinely take >120s (extremely long code generation, multi-step agent runs)" [ref=e3242]
+                          - cell "Low — user can increase constant" [ref=e3244]
+                          - cell "Make timeout configurable per-run via popup" [ref=e3246]
+                        - row [ref=e3248]:
+                          - cell [ref=e3249]:
+                            - strong [ref=e3251]:
+                              - text: TreeWalker extraction skips
+                              - code [ref=e3252] [cursor=pointer]: <button>
+                              - text: text
+                          - cell "Responses that contain button-like UI (e.g., \"Click here to run this code\" with an actual button that has meaningful label text)" [ref=e3253]
+                          - cell "Very low" [ref=e3255]
+                          - cell [ref=e3257]:
+                            - generic [ref=e3258]:
+                              - text: Accept the loss; button text is rarely the
+                              - emphasis [ref=e3259]: content
+                              - text: of the response
+                        - row [ref=e3260]:
+                          - cell [ref=e3261]:
+                            - strong [ref=e3263]: Stability window is time-based, not token-based
+                          - cell "A model that outputs one token every 2.9 seconds (just under the 3s threshold) will never trigger stability" [ref=e3264]
+                          - cell "Very low — no real model streams this slowly" [ref=e3266]
+                          - cell "The network signal catches this case; stability is fallback only" [ref=e3268]
+                        - row [ref=e3270]:
+                          - cell [ref=e3271]:
+                            - strong [ref=e3273]:
+                              - text: Single
+                              - code [ref=e3274] [cursor=pointer]: activeCid
+                              - text: — no multi-response handling
+                          - cell "If the site renders the response in two separate containers (e.g., \"thinking\" block + \"answer\" block as siblings), you get only the higher-scored one" [ref=e3275]
+                          - cell "Medium — affects reasoning model UIs" [ref=e3277]
+                          - cell "Score top-2 candidates; if both have >100 chars, concatenate. 10 lines." [ref=e3279]
+                        - row [ref=e3281]:
+                          - cell [ref=e3282]:
+                            - strong [ref=e3284]:
+                              - text: "No"
+                              - code [ref=e3285] [cursor=pointer]: chrome.scripting.executeScript
+                              - text: fallback
+                          - cell [ref=e3286]:
+                            - generic [ref=e3287]:
+                              - text: If
+                              - code [ref=e3288] [cursor=pointer]: Runtime.evaluate
+                              - text: is blocked by an extension conflict or CDP bug, there's no secondary injection path
+                          - cell "Very low" [ref=e3289]
+                          - cell [ref=e3291]:
+                            - generic [ref=e3292]:
+                              - text: Add a one-time fallback to
+                              - code [ref=e3293] [cursor=pointer]: executeScript
+                              - text: if the first
+                              - code [ref=e3294] [cursor=pointer]: Runtime.evaluate
+                              - text: throws. 8 lines.
+                        - row [ref=e3295]:
+                          - cell [ref=e3296]:
+                            - strong [ref=e3298]: Prompt verification is timing-based (2.5s)
+                          - cell "Sites with very slow input processing (>2.5s to consume the text) will be falsely flagged as \"send failed\"" [ref=e3299]
+                          - cell "Low" [ref=e3301]
+                          - cell [ref=e3303]:
+                            - generic [ref=e3304]:
+                              - text: Make the verification timeout proportional to
+                              - code [ref=e3305] [cursor=pointer]: skipWait
+                              - text: setting; 3 lines
+                  - separator [ref=e3307]
+                  - heading "Final Architectural Diagram" [level=2] [ref=e3308]
+                  - code [ref=e3325]:
+                    - generic [ref=e3326]:
+                      - textbox "Editor content"
+                      - textbox [ref=e3327]
+                      - generic [ref=e3329]:
+                        - generic [ref=e3330]: "1"
+                        - generic [ref=e3333]: "2"
+                        - generic [ref=e3335]: "3"
+                        - generic [ref=e3337]: "4"
+                        - generic [ref=e3339]: "5"
+                        - generic [ref=e3341]: "6"
+                        - generic [ref=e3343]: "7"
+                        - generic [ref=e3345]: "8"
+                        - generic [ref=e3347]: "9"
+                        - generic [ref=e3349]: "10"
+                        - generic [ref=e3351]: "11"
+                        - generic [ref=e3353]: "12"
+                        - generic [ref=e3355]: "13"
+                        - generic [ref=e3357]: "14"
+                        - generic [ref=e3359]: "15"
+                        - generic [ref=e3361]: "16"
+                        - generic [ref=e3363]: "17"
+                        - generic [ref=e3365]: "18"
+                        - generic [ref=e3367]: "19"
+                        - generic [ref=e3369]: "20"
+                        - generic [ref=e3371]: "21"
+                        - generic [ref=e3373]: "22"
+                        - generic [ref=e3375]: "23"
+                        - generic [ref=e3377]: "24"
+                        - generic [ref=e3379]: "25"
+                        - generic [ref=e3381]: "26"
+                        - generic [ref=e3383]: "27"
+                        - generic [ref=e3385]: "28"
+                        - generic [ref=e3387]: "29"
+                        - generic [ref=e3389]: "30"
+                        - generic [ref=e3391]: "31"
+                        - generic [ref=e3393]: "32"
+                        - generic [ref=e3395]: "33"
+                        - generic [ref=e3397]: "34"
+                        - generic [ref=e3399]: "35"
+                        - generic [ref=e3401]: "36"
+                        - generic [ref=e3403]: "37"
+                        - generic [ref=e3405]: "38"
+                        - generic [ref=e3407]: "39"
+                        - generic [ref=e3409]: "40"
+                        - generic [ref=e3411]: "41"
+                      - generic [ref=e3456]:
+                        - generic [ref=e3457]: ┌──────────────────────────────┐
+                        - generic [ref=e3459]: │ background.js (MV3 SW) │
+                        - generic [ref=e3461]: │ │
+                        - generic [ref=e3463]: │ ┌────────────────────────┐ │
+                        - generic [ref=e3465]: │ │ sendAndRead() │ │
+                        - generic [ref=e3467]: │ │ │ │
+                        - generic [ref=e3469]: │ │ 1. installWatcher() │──┼──→ Runtime.evaluate (inject)
+                        - generic [ref=e3471]: │ │ 2. startNetworkWatch()│──┼──→ Network.enable + onEvent
+                        - generic [ref=e3473]: │ │ 3. sendTextThenEnter()│──┼──→ Input.insertText + Enter
+                        - generic [ref=e3475]: │ │ 4. verifySend() │ │
+                        - generic [ref=e3477]: │ │ 5. waitForCompletion()│──┼──→ Runtime.evaluate (poll ×N)
+                        - generic [ref=e3479]: │ │ ┌──────────────┐ │ │
+                        - generic [ref=e3481]: │ │ │ poll loop │ │ │ ┌─────────────────────┐
+                        - generic [ref=e3483]: "│ │ │ every 800ms │◄──┼──┼────│ PAGE: window.__arw │"
+                        - generic [ref=e3485]: │ │ │ non-blocking │ │ │ │ │
+                        - generic [ref=e3487]: │ │ └──────────────┘ │ │ │ MutationObserver │
+                        - generic [ref=e3489]: │ │ 6. extractResponse() │──┼──→ │ Candidate Map │
+                        - generic [ref=e3491]: │ │ 7. cleanup │ │ │ Scoring Engine │
+                        - generic [ref=e3493]: │ └────────────────────────┘ │ │ Signal Detector │
+                        - generic [ref=e3495]: │ │ │ TreeWalker Extract │
+                        - generic [ref=e3497]: │ chrome.alarms (keepalive) │ └─────────────────────┘
+                        - generic [ref=e3499]: │ chrome.debugger.onDetach │
+                        - generic [ref=e3501]: └──────────────────────────────┘
+                        - generic [ref=e3504]: "COMPLETION SIGNALS (priority order):"
+                        - generic [ref=e3506]: ┌─────────────────────────────────────────────────────────┐
+                        - generic [ref=e3508]: │ 1. Network.loadingFinished on stream → INSTANT done │
+                        - generic [ref=e3510]: │ 2. Input re-enabled + text > 50 chars → done │
+                        - generic [ref=e3512]: │ 3. Text stable 3s + stop button gone → done │
+                        - generic [ref=e3514]: │ 4. Text stable 3s + input re-enabled → done │
+                        - generic [ref=e3516]: │ 5. Text stable 8s alone → done (warning) │
+                        - generic [ref=e3518]: │ 6. 120s hard timeout → done (partial) │
+                        - generic [ref=e3520]: └─────────────────────────────────────────────────────────┘
+                        - generic [ref=e3523]: "EXTRACTION FALLBACK CHAIN:"
+                        - generic [ref=e3525]: ┌─────────────────────────────────────────────────────────┐
+                        - generic [ref=e3527]: │ 1. Best-scored candidate → TreeWalker innerText │
+                        - generic [ref=e3529]: │ 2. Sibling traversal from prompt text node │
+                        - generic [ref=e3531]: │ 3. Largest text block in bottom 80% of viewport │
+                        - generic [ref=e3533]: "│ 4. Return { success: false } │"
+                        - generic [ref=e3535]: └─────────────────────────────────────────────────────────┘
+                  - generic [ref=e3539]:
+                    - text: "The plan you synthesized was 80% right. The two changes that matter most:"
+                    - strong [ref=e3540]:
+                      - text: kill
+                      - code [ref=e3541] [cursor=pointer]: awaitPromise
+                    - text: (it's a single point of failure that will bite you in production within a week), and
+                    - strong [ref=e3542]: reinstate the network layer
+                    - text: (it's the only non-heuristic signal you have, and it costs 40 lines). Everything else is tuning. Ship this, run it against your 6 sites, and you'll have your answer reader.
+              - generic [ref=e3546]:
+                - button "Copy" [ref=e3547] [cursor=pointer]
+                - button "Good Response" [ref=e3551] [cursor=pointer]
+                - button "Bad Response" [ref=e3555] [cursor=pointer]
+                - button "Share" [ref=e3559] [cursor=pointer]
+                - button "Regenerate" [ref=e3563] [cursor=pointer]
+                - button "More actions" [ref=e3567] [cursor=pointer]
+            - generic [ref=e3703]:
+              - paragraph [ref=e3704]: "ROUND 4: FINAL REFINED PLAN — Simplified Signal-Driven Answer Reader I read all 4 of your Round 3 critiques. Here is the final plan I intend to implement. Need your FINAL review. === KEY DECISIONS === 1. EXECUTION: chrome.scripting.executeScript (not CDP). Fire-and-forget pattern. 2. PHASE MACHINE: WAITING→STREAMING→LOCKED→COMPLETE. 3. SCORING (killed penalties): Text length + block + viewport. 4. CANDIDATE LOCKING: 3 polls with score > 600. 5. COMPLETION: Stability 2.5s + input/stop signals. 5s force bypass. 6. EXTRACTION: Locked candidate cloneNode/innerText. Fallbacks. 7. SHADOW DOM: Recursive walk at injection. 8. KEEPALIVE: chrome.alarms 24s. 9. NETWORK: Excluded. === YOUR TASK === 1. Any remaining fatal flaws? 2. Change ONE thing? 3. Confidence 0-100%? 4. Last-minute gotchas? Be blunt. Final round before code."
+              - button "Expand" [ref=e3705] [cursor=pointer]
+            - generic [ref=e3712]: Thinking...
+          - generic "conversation index" [ref=e3664]
+          - generic [ref=e3580]:
+            - button "Select Mode" [ref=e3723] [cursor=pointer]
+            - textbox "How can I help you today?" [ref=e3588]
+            - generic [ref=e3728]:
+              - generic "Thinking" [ref=e3730] [cursor=pointer]:
+                - generic [ref=e3732]:
+                  - combobox "Thinking" [ref=e3734]
+                  - generic [ref=e3735]: Thinking
+              - button "Voice Input" [ref=e3739] [cursor=pointer]
+              - button "Stop" [ref=e3745] [cursor=pointer]
+          - generic [ref=e3610]: AI-generated content may not be accurate.
+  - generic [ref=e3611]:
+    - alert
+    - alert

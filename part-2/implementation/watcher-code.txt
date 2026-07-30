@@ -1,0 +1,364 @@
+================================================================================
+Part 2: AI Response Watcher — Full Implementation Code
+================================================================================
+
+Extracted from background.js (lines 1037–1325)
+File: background.js
+MD5 (background.js at time of extraction): (will differ if edited later)
+
+This is the complete Part 2 implementation including:
+  - injectResponseWatcher(prompt)      — the CDP-injectable DOM watcher
+  - buildResponseWatcherCode(prompt)   — serialization helper
+  - readResponse(tabId, logger)        — CDP injection + fallback logic
+  - runAutomation() entry point        — shows where it hooks in
+
+================================================================================
+SECTION 1: injectResponseWatcher (lines 1037–1249)
+================================================================================
+
+// ---- Part 2: AI Response Reader --------------------------------------------
+//
+// injectResponseWatcher(prompt) — runs IN THE PAGE CONTEXT via CDP
+// Runtime.evaluate. It is a self-contained function that monitors the DOM
+// for the AI's streaming response, waits for it to complete, then extracts
+// the final text. It returns a Promise that resolves with the answer object.
+//
+// During WAITING and STREAMING phases: only checks body.innerText.length
+// (zero DOM traversal). Full DOM scoring runs ONCE at COMPLETE phase.
+// ============================================================================
+
+// NOTE: This function is serialized via .toString() and injected via CDP.
+// It must be fully self-contained — no references to outer scope variables.
+function injectResponseWatcher(prompt) {
+  'use strict';
+
+  /* ---- STATE ---- */
+  const preSendText = document.body.innerText;
+  const startTime = Date.now();
+  const MAX_WAIT = 120000;
+  const POLL_MS = 500;
+  const STABILITY_MS = 3000;
+  const THINKING_MS = 8000;
+  const FORCE_BYPASS_MS = 5000;
+  const SCORE_THRESHOLD = 600;
+  const LOCK_STREAK = 3;
+  const GHOST_CHECK = true;
+
+  let phase = 'WAITING';
+  let lastLen = preSendText.length;
+  let stableStart = null;
+  let bypassTimer = null;
+  let lockedEl = null;
+  let lockedScore = 0;
+  let lockStreak = 0;
+  let thinkingMode = false;
+
+  /* ---- HELPERS ---- */
+  function isThinkingVisible() {
+    var els = document.querySelectorAll(
+      '[class*="thinking" i],[class*="reasoning" i],[data-testid*="thinking" i],' +
+      '[aria-label*="thinking" i],[class*="generating" i],[class*="loading" i]'
+    );
+    for (var i = 0; i < els.length; i++) {
+      var r = els[i].getBoundingClientRect();
+      if (r.width > 0 && r.height > 0 && getComputedStyle(els[i]).visibility !== 'hidden') return true;
+    }
+    return false;
+  }
+
+  function isStopVisible() {
+    var btns = document.querySelectorAll('button,[role="button"]');
+    for (var i = 0; i < btns.length; i++) {
+      var t = (btns[i].innerText || btns[i].textContent || '').toLowerCase();
+      if ((t.indexOf('stop') >= 0 || t.indexOf('halt') >= 0 || t.indexOf('generate') >= 0) && btns[i].offsetParent !== null) return true;
+    }
+    return false;
+  }
+
+  function isInputEnabled() {
+    var el = document.querySelector('[data-autoprompt-input]');
+    if (!el) return true;
+    if (GHOST_CHECK && (!el.offsetParent || getComputedStyle(el).visibility === 'hidden')) return true;
+    if (el.hasAttribute('disabled') && !el.disabled) return true;
+    if (el.hasAttribute('readonly') && !el.readOnly) return true;
+    if (el.disabled) return false;
+    var v = (el.value !== undefined ? el.value : el.innerText || '');
+    if (typeof v === 'string' && v.trim().length === 0) return true;
+    return false;
+  }
+
+  function scoreCandidate(el) {
+    var s = 0;
+    var txt = (el.textContent || '').trim().length;
+    if (txt > 0) s += Math.min(3000, Math.round(Math.log(txt + 1) * 400));
+    var r = el.getBoundingClientRect();
+    if (r.width > 300) s += 300;
+    if (r.height > 50) s += 200;
+    var vh = window.innerHeight;
+    if (el.scrollHeight > vh) { s += 600; }
+    else if (r.top > vh * 0.2 && r.bottom < vh * 0.95) { s += 600; }
+    if (r.top < 100) s -= 200;
+    if (r.width < 100 || r.height < 30) s -= 500;
+    return s;
+  }
+
+  function findBestCandidate() {
+    var best = null, bestScore = -Infinity;
+    var candidates = document.querySelectorAll(
+      'article,[class*="message" i],[class*="response" i],[class*="chat-bubble" i],' +
+      '[class*="conversation" i],[data-message-author-role="assistant"],div[class*="group" i]'
+    );
+    for (var i = 0; i < candidates.length; i++) {
+      var s = scoreCandidate(candidates[i]);
+      if (s > bestScore && s > 100) { bestScore = s; best = candidates[i]; }
+    }
+    return { el: best, score: bestScore };
+  }
+
+  function extractText(el) {
+    var hidden = [];
+    var junk = el.querySelectorAll('button,svg,nav,[role="toolbar"],[role="menu"],footer,[aria-hidden="true"],[aria-label*="copy" i]');
+    for (var j = 0; j < junk.length; j++) {
+      hidden.push([junk[j], junk[j].style.display]);
+      junk[j].style.display = 'none';
+    }
+    var txt = el.innerText;
+    for (var k = 0; k < hidden.length; k++) hidden[k][0].style.display = hidden[k][1];
+    return txt.trim();
+  }
+
+  function deltaDiff(fullText) {
+    if (fullText.length > preSendText.length) {
+      var d = fullText.substring(preSendText.length);
+      if (d.trim().length > 20) return d.trim();
+    }
+    var idx = fullText.lastIndexOf(prompt);
+    if (idx >= 0) {
+      var a = fullText.substring(idx + prompt.length);
+      if (a.trim().length > 20) return a.trim();
+    }
+    return null;
+  }
+
+  /* ---- MAIN ---- */
+  return new Promise(function(resolve) {
+    var safetyTimer = setTimeout(function() { finish('safety-timeout', 'low'); }, MAX_WAIT);
+
+    function finish(reason, confidence) {
+      clearTimeout(safetyTimer);
+      if (bypassTimer) clearTimeout(bypassTimer);
+      var text = null, method = 'none', wordCount = 0;
+
+      if (lockedEl) {
+        text = extractText(lockedEl);
+        if (text && text.length > 0) method = 'locked';
+      }
+      if (!text || text.length === 0) {
+        text = deltaDiff(document.body.innerText);
+        if (text && text.length > 0) method = 'delta';
+      }
+      if (!text || text.length === 0) {
+        text = document.body.innerText;
+        method = 'full-body';
+      }
+      wordCount = text ? text.split(/\s+/).filter(Boolean).length : 0;
+
+      resolve({
+        text: text || '', wordCount: wordCount, confidence: confidence || 'medium',
+        method: method, reason: reason, duration: Date.now() - startTime
+      });
+    }
+
+    function poll() {
+      if (phase === 'COMPLETE') return;
+      var curLen = document.body.innerText.length;
+      thinkingMode = isThinkingVisible();
+
+      if (phase === 'WAITING') {
+        if (curLen > lastLen) {
+          phase = 'STREAMING';
+          lastLen = curLen;
+          if (!thinkingMode) bypassTimer = setTimeout(function() { finish('force-bypass', 'medium'); }, FORCE_BYPASS_MS);
+        }
+        return;
+      }
+
+      if (phase === 'STREAMING') {
+        var stableMs = stableStart ? Date.now() - stableStart : 0;
+        var reqStable = thinkingMode ? THINKING_MS : STABILITY_MS;
+        var signalMet = isInputEnabled() || !isStopVisible();
+
+        if (curLen === lastLen) {
+          if (stableStart === null) { stableStart = Date.now(); }
+          else if (signalMet && stableMs >= reqStable) {
+            // Text stable + signal met → search for container
+            var c = findBestCandidate();
+            if (c.el && c.score > SCORE_THRESHOLD) {
+              lockedEl = c.el; lockedScore = c.score; lockStreak = 1;
+              phase = 'LOCKED';
+            } else {
+              phase = 'LOCKED'; // proceed without locked candidate
+              finish('no-better-candidate', 'medium');
+            }
+          }
+        } else {
+          stableStart = null;
+          lastLen = curLen;
+        }
+        return;
+      }
+
+      if (phase === 'LOCKED') {
+        var c2 = findBestCandidate();
+        if (c2.el && c2.score > SCORE_THRESHOLD) {
+          lockedEl = c2.el; lockedScore = c2.score; lockStreak++;
+        } else { lockStreak = 0; }
+        var stableMs2 = stableStart ? Date.now() - stableStart : 0;
+        var reqStable2 = thinkingMode ? THINKING_MS : STABILITY_MS;
+        var signalMet2 = isInputEnabled() || !isStopVisible();
+        if (lockStreak >= LOCK_STREAK && stableMs2 >= reqStable2 && signalMet2) {
+          phase = 'COMPLETE';
+          finish('normal', 'high');
+        }
+        return;
+      }
+    }
+
+    var iv = setInterval(poll, POLL_MS);
+    var origFinish = finish;
+    finish = function(reason, confidence) { clearInterval(iv); clearTimeout(safetyTimer); if (bypassTimer) clearTimeout(bypassTimer); origFinish(reason, confidence); };
+  });
+}
+
+function buildResponseWatcherCode(prompt) {
+  var esc = JSON.stringify(prompt);
+  return '(' + injectResponseWatcher.toString() + ')(' + esc + ')';
+}
+
+
+================================================================================
+SECTION 2: readResponse — CDP injection logic (lines 1256–1301)
+================================================================================
+
+// ---- Response reader — injects watcher via CDP, awaits the result -----------
+async function readResponse(tabId, logger) {
+  logger.log(tabId, 'Reading response: injecting watcher via CDP Runtime.evaluate');
+  var prompt = '';
+  try {
+    var markResult = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: function() { var el = document.querySelector('[data-autoprompt-input]'); return el ? el.textContent || el.innerText || el.value || '' : ''; }
+    });
+    if (markResult && markResult[0]) prompt = markResult[0].result || '';
+  } catch (e) {}
+
+  var watcherCode = buildResponseWatcherCode(prompt);
+  try {
+    var evalResult = await chrome.debugger.sendCommand({ tabId: tabId }, 'Runtime.evaluate', {
+      expression: watcherCode,
+      awaitPromise: true,
+      returnByValue: true,
+      timeout: 120000
+    });
+    var answer = evalResult && evalResult.result && evalResult.result.value;
+    if (answer && answer.text) {
+      logger.log(tabId, 'Response captured: ' + answer.wordCount + ' words, method=' + answer.method + ', confidence=' + answer.confidence);
+      return answer;
+    }
+    logger.log(tabId, 'Response reader returned empty — falling back to body.innerText');
+    var fallback = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: function() { return document.body.innerText; }
+    });
+    var fbText = fallback && fallback[0] ? fallback[0].result || '' : '';
+    return { text: fbText, wordCount: fbText.split(/\s+/).filter(Boolean).length, confidence: 'low', method: 'fallback', reason: 'watcher-empty', duration: 0 };
+  } catch (e) {
+    logger.log(tabId, 'CDP Runtime.evaluate failed: ' + e.message + ' — falling back to body.innerText');
+    try {
+      var fb2 = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: function() { return document.body.innerText; }
+      });
+      var fb2Text = fb2 && fb2[0] ? fb2[0].result || '' : '';
+      return { text: fb2Text, wordCount: fb2Text.split(/\s+/).filter(Boolean).length, confidence: 'low', method: 'cdp-fallback', reason: e.message, duration: 0 };
+    } catch (e2) {
+      return { text: '', wordCount: 0, confidence: 'low', method: 'error', reason: e2.message, duration: 0 };
+    }
+  }
+}
+
+
+================================================================================
+SECTION 3: Integration points (4 call sites in background.js)
+================================================================================
+
+--- CALL SITE 1: sendToActivatedTab (normal mode, initial send success) ---
+// Lines ~607-613
+if (verification.verified) {
+  result.status = 'success';
+  result.reason = verification.reason;
+  result.response = await readResponse(tabId, logger);
+  await cleanupInputElementMark(tabId);
+}
+
+--- CALL SITE 2: recheckFailedTab (normal mode, Stage 3 retry success) ---
+// Lines ~505-509
+if (retryVerification.verified) {
+  result.status = 'success';
+  result.reason = `Retry Enter success: ${retryVerification.reason}`;
+  logger.log(result.tabId, 'Stage 3 passed — reading response');
+  result.response = await readResponse(result.tabId, logger);
+}
+
+--- CALL SITE 3: stealthSendToTab (stealth mode, initial send success) ---
+// Lines ~868-872
+if (verification.verified) {
+  result.status = 'success';
+  result.reason = verification.reason;
+  logger.log(result.tabId, 'Stealth: send verified — reading response');
+  result.response = await readResponse(tabId, logger);
+  await cleanupInputElementMark(tabId);
+}
+
+--- CALL SITE 4: stealthRecheckFailedTab (stealth mode, Stage 3 retry success) ---
+// Lines ~955-959
+if (retryVerification.verified) {
+  result.status = 'success';
+  result.reason = `Retry Enter success: ${retryVerification.reason}`;
+  logger.log(result.tabId, 'Stage 3 passed — reading response');
+  result.response = await readResponse(result.tabId, logger);
+}
+
+
+================================================================================
+SECTION 4: runAutomation entry point (lines 1303–1325)
+================================================================================
+
+// ---- Main entry point --------------------------------------------------------
+async function runAutomation(urls, prompt, opts) {
+  const logger = makeLogger();
+  try {
+    if (!Array.isArray(urls) || urls.length === 0) {
+      logger.log('main', 'No URLs provided, aborting.');
+      await chrome.storage.local.set({ lastRunResults: [], lastRunFinishedAt: Date.now() });
+      return;
+    }
+
+    let results;
+    if (opts.experimentalBackground) {
+      results = await runAutomationStealth(urls, prompt, opts.skipWait, logger);
+    } else {
+      results = await runAutomationAutoCycle(urls, prompt, opts.skipWait, logger);
+    }
+    return results;
+  } catch (err) {
+    logger.log('main', `Unhandled error: ${err && err.message}`);
+    await chrome.storage.local.set({ lastRunResults: [], lastRunFinishedAt: Date.now() });
+    throw err;
+  }
+}
+
+
+================================================================================
+END OF PART 2 IMPLEMENTATION CODE
+================================================================================

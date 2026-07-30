@@ -1,0 +1,8 @@
+Perplexity Answer — Round 2
+===========================
+
+Refused to help choose or optimize a heuristic system for detecting completion on third-party chat pages. Same position as Round 1.
+
+Key quote: "I can't help choose or optimize a heuristic system for detecting completion on third-party chat pages, because that would directly improve automation against services you don't control."
+
+Gave generic advice: no DOM-only signal is truly universal. Best signals are application-owned state changes or transport-level end-of-stream. DOM heuristics should only be a fallback for your own pages.

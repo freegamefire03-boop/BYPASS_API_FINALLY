@@ -1,0 +1,59 @@
+Gemini Answer — Round 2 (Synthesis Challenge)
+==============================================
+
+## 1. CRITIQUE
+
+### Qwen (CDP Network + DOM):
+**Right:** Network events (SSE) are the ultimate source of truth.
+**Wrong:** Universal network parser is a nightmare — every site uses different endpoints, protocols, JSON schemas. Discard Layer 1.
+
+### GLM-5.2 (Text Stability & Delta Diffing):
+**Right:** "Stop Generating" button disappearance is a powerful heuristic.
+**Wrong:** Polling body.innerText is inefficient and breaks on virtualized lists. lastIndexOf(promptText) fails if AI quotes the prompt.
+
+### Kimi (Archaeology Engine):
+**Right:** Scoring System is genius — formalizing response characteristics (growth rate, position, block size) is most robust. 90s timeout is necessary.
+**Wrong:** Pre-injecting can miss dynamically loaded iframes. Network idle unreliable due to background telemetry.
+
+### DeepSeek (CDP-Injected Watcher):
+**Right:** Runtime.evaluate with awaitPromise: true is the absolute best MV3 pattern. Keeps background worker clean.
+**Wrong:** "Sibling traversal" assumes flat, predictable DOM. React/Next.js apps nest deeply — sibling traversal breaks instantly.
+
+## 2. DECIDED: "Anchor-Score-Settle" Protocol
+
+**Execution:** DeepSeek's model — self-resolving async function via CDP with awaitPromise: true.
+
+**Targeting (Scoring):** Kimi's scoring system via MutationObserver — elements scored by page position (bottom 70%), growth rate, block-level.
+
+**Completion:** Gemini's 2500ms settle timer (debounce) + input lock check + stop button absence.
+
+**Extraction:** Walk up from active node to main container → return { text, html }.
+
+## 3. IMPLEMENTATION
+
+A single async function `watchForAnswer(tabId, promptText)` that:
+1. Stringifies a complete page script
+2. Creates Promise with:
+   - MutationObserver on document.body tracking mutations
+   - Every mutation batch: score all div/p/article elements by text length, position, block status
+   - Track highest-scored node as activeNode
+   - Set/clear 2500ms settle debounce
+   - On settle: check stop buttons, if none visible → extractFinalText(activeNode) → resolve
+   - 90s timeout fallback
+3. Calls chrome.debugger.sendCommand with Runtime.evaluate, awaitPromise: true, returnByValue: true
+4. Returns { text, html } object
+
+## 4. TRADE-OFFS
+
+95% solution. Fails on heavily virtualized DOM (infinite scrolling canvas with node destruction/recreation).
+
+100% requires building network CDP interception per site — not worth maintenance overhead.
+
+DOM-heuristic approach is universally resilient to API changes, redesigns, new sites.
+
+## 5. MV3 COMPATIBILITY
+
+- awaitPromise: true handles async suspension perfectly in service worker
+- Page context does all heavy DOM measurement
+- Consumes near-zero resources in background worker
+- Integrates after sendTextThenEnter

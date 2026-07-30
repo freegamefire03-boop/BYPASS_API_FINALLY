@@ -1,0 +1,22 @@
+Z.ai (GLM-5.2) Answer — Round 1
+=================================
+
+## The Architecture: "Text Stability & Delta Diffing"
+
+Instead of trying to find the AI's specific response container, track the entire page's text content. Watch it grow (streaming), and when it stops growing for a sustained period, declare the response "finished." Then extract the delta.
+
+### Strategy:
+1. **Pre-Send Snapshot**: Grab page text via `document.body.innerText` before sending.
+2. **"Stop Generating" Heuristic**: Poll for a button with aria-label/text matching /stop|halt|interrupt/i. When it appears → AI is typing. When it disappears → AI is finished.
+3. **Text Stability Fallback**: Poll `document.body.innerText` every 600ms. If text length unchanged for 3 consecutive checks (1.8s) and text grew, assume done.
+4. **Delta Extraction**: Find prompt text in final text via `lastIndexOf(promptText)`, grab everything after it. Fallback: `finalText.substring(preSendText.length)`.
+
+### Integration:
+Call `waitForResponseAndExtract(tabId, prompt, logger)` after `verifySend` succeeds in `sendToActivatedTab`.
+
+### Pitfalls:
+- **Markdown Re-rendering**: Post-stream re-parsing can change innerText length. Fix: increase stability threshold.
+- **Suggested Replies**: UI buttons appended after answer. Fix: regex cleanup.
+- **Background Tab Throttling**: Chrome throttles setTimeout in hidden tabs. Fix: maxIterations cap + visibility spoofing.
+- **Shadow DOMs**: Some sites use closed shadow roots. Fix: stick to `innerText`.
+- **Paste Event Overwrite**: Input.insertText may not update React state, making prompt text unfindable. Fix: delta diff fallback.

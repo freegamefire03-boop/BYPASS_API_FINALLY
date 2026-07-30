@@ -1,0 +1,63 @@
+Z.ai (GLM-5.2) Answer — Round 2 (Synthesis Challenge)
+=======================================================
+
+## 1. CRITIQUE
+
+### Qwen — "Two-Layer System" (Network + DOM)
+**Right:** Network events (SSE/WebSocket closing) are the most mathematically accurate signal.
+**Wrong:** Violates "universal" constraint — parsing SSE requires knowing site's specific JSON schema. Network stream often closes before frontend JS finishes rendering final markdown. MV3 service workers struggle to hold CDP network subscriptions.
+
+### Gemini — "Heuristic DOM Settling + Input Lock"
+**Right:** "Input Lock" observation is genius — 99% of AI sites disable textarea during generation. MutationObserver is most performant.
+**Wrong:** Finding "fastest-growth node" requires heavy computation on every mutation, can cause jank on long responses.
+
+### Kimi — "Conversation Archaeology Engine"
+**Right:** Pre-injecting MutationObserver prevents race conditions. Scoring system identifies response container amidst noisy DOM.
+**Wrong:** Over-engineered — if we only need final text, don't need to identify container during transit. "Network idle 2s" unreliable because chat sites maintain background WebSockets for telemetry.
+
+### DeepSeek — "CDP-Injected Answer Watcher"
+**Right:** Runtime.evaluate with awaitPromise is elegant. lastIndexOf(prompt) to anchor search is smart.
+**Wrong:** Sibling traversal too brittle for modern SPAs (React/Vue wrap messages in nested flexbox). Keeping debugger attached is unnecessary overhead.
+
+## 2. DECIDED: Unified Architecture
+
+"Signal-Driven Diff Extractor"
+
+**Execution Model:** chrome.scripting.executeScript with async function returning Promise. No debugger dependency.
+
+**Completion Signals (2 of 3):**
+- Primary: MutationObserver debounce (DOM settling)
+- Secondary: Input Lock detection (textarea re-enabled)
+- Tertiary: Stop Button absence
+
+**Extraction:** document.body.innerText diffing via lastIndexOf(prompt). Regex cleanup of UI artifacts.
+
+## 3. IMPLEMENTATION
+
+Uses chrome.scripting.executeScript injecting a self-contained async function:
+- MutationObserver that resets lastMutationTime on each mutation
+- 500ms polling interval checking:
+  - Stop button presence (aria-label or textContent containing stop/halt/interrupt)
+  - Input enabled (textarea/contenteditable not disabled)
+  - Time since last mutation
+- Completion: 2-of-3 heuristic matching (stop seen then gone + settled, or input enabled + settled, or 4s absolute fallback)
+- Extraction: body.innerText → lastIndexOf(prompt) → substring → regex cleanup
+- 120s timeout
+
+## 4. TRADE-OFFS
+
+90% universal: Works on ChatGPT, Claude, Gemini, DeepSeek, Perplexity without modification.
+
+Not 100%: "Suggested Replies" trap — after response, sites inject suggestion buttons into DOM which:
+- Delays debounce timer
+- Gets captured in innerText extraction (mitigated by regex cleanup)
+
+100% requires network SSE parsing per site, which is fragile when schemas change.
+
+## 5. MV3 CONCERNS
+
+- executeScript keeps service worker alive via unresolved Promise
+- Optional keepAlive interval: setInterval(() => chrome.runtime.getPlatformInfo(() => {}), 25000)
+- No debugger dependency — can detach immediately after sendTextThenEnter
+- Memory safe: observer.disconnect() and clearInterval() before resolving
+- Tab crash/navigation → executeScript rejects gracefully

@@ -1,0 +1,341 @@
+- generic [ref=f1e1]:
+  - generic [ref=f1e6]:
+    - navigation "Main" [ref=f1e8]:
+      - generic [ref=f1e10]:
+        - generic [ref=f1e11]:
+          - link [ref=f1e12] [cursor=pointer]:
+            - /url: /
+            - img "Perplexity" [ref=f1e15]
+          - button "Collapse sidebar" [ref=f1e18] [cursor=pointer]
+        - generic [ref=f1e24]:
+          - generic [ref=f1e27]:
+            - link "New" [ref=f1e28] [cursor=pointer]:
+              - /url: /
+            - generic:
+              - generic:
+                - generic:
+                  - generic: New
+                  - generic: ⌃I
+          - generic [ref=f1e31]:
+            - link "Computer" [ref=f1e32] [cursor=pointer]:
+              - /url: /computer/tasks
+            - generic:
+              - generic:
+                - generic:
+                  - generic:
+                    - button "Expand Computer"
+                - generic: Computer
+          - generic [ref=f1e36]:
+            - link "Spaces" [ref=f1e37] [cursor=pointer]:
+              - /url: /spaces
+            - generic:
+              - generic:
+                - generic:
+                  - generic:
+                    - button "Expand Spaces"
+                - generic: Spaces
+          - generic [ref=f1e41]:
+            - link "Artifacts" [ref=f1e42] [cursor=pointer]:
+              - /url: /computer/artifacts
+            - generic:
+              - generic:
+                - generic:
+                  - generic:
+                    - button "Expand Artifacts"
+                - generic: Artifacts
+          - generic [ref=f1e44]:
+            - generic [ref=f1e46]:
+              - link "Customize" [ref=f1e47] [cursor=pointer]:
+                - /url: /computer/connectors
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - button "Collapse Customize" [expanded]
+                  - generic: Customize
+            - generic [ref=f1e49]:
+              - generic [ref=f1e50]:
+                - link "Connectors" [ref=f1e51] [cursor=pointer]:
+                  - /url: /computer/connectors
+                - generic: Connectors
+              - generic [ref=f1e52]:
+                - link "Skills" [ref=f1e53] [cursor=pointer]:
+                  - /url: /computer/skills
+                - generic: Skills
+              - generic [ref=f1e54]:
+                - link "Workflows" [ref=f1e55] [cursor=pointer]:
+                  - /url: /computer/workflows
+                - generic: Workflows
+              - generic [ref=f1e56]:
+                - link "Memory" [ref=f1e57] [cursor=pointer]:
+                  - /url: /computer/memory?thread=fd059c79-fca5-468e-9fc0-2904ea405024
+                - generic: Memory
+          - generic [ref=f1e58]:
+            - generic [ref=f1e60]:
+              - link "History" [ref=f1e61] [cursor=pointer]:
+                - /url: /library
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - button "Collapse History" [expanded]
+                  - generic: History
+            - generic [ref=f1e63]:
+              - generic [ref=f1e64]:
+                - link "paste.txt" [ref=f1e65] [cursor=pointer]:
+                  - /url: /search/f8fe7dab-2a6b-43b9-a4ea-95d9aee3b2fa
+                - generic:
+                  - generic:
+                    - generic: paste.txt
+                    - button "Session actions" [ref=f1e69] [cursor=pointer]
+              - generic [ref=f1e72]:
+                - link "hi who are you" [ref=f1e73] [cursor=pointer]:
+                  - /url: /search/fb36a6ea-cb50-4cdf-99b2-351d53e840e4
+                - generic: hi who are you
+              - generic [ref=f1e74]:
+                - link "explain ai in 1 page" [ref=f1e75] [cursor=pointer]:
+                  - /url: /search/b7b1b84d-a41e-421c-a628-f44a1e6c1f9a
+                - generic: explain ai in 1 page
+              - generic [ref=f1e76]:
+                - link "hi" [ref=f1e77] [cursor=pointer]:
+                  - /url: /search/d9d335a0-ab22-4e02-8706-1e38814b4377
+                - generic: hi
+              - generic [ref=f1e78]:
+                - link "explain quantom physics" [ref=f1e79] [cursor=pointer]:
+                  - /url: /search/3e35a8a4-e757-4278-ab39-1573eaf9151a
+                - generic: explain quantom physics
+              - generic [ref=f1e80]:
+                - link "explain quantom physics" [ref=f1e81] [cursor=pointer]:
+                  - /url: /search/c1911112-8e16-4f36-a465-b2b5be7dbf9f
+                - generic: explain quantom physics
+              - generic [ref=f1e82]:
+                - link "hi there" [ref=f1e83] [cursor=pointer]:
+                  - /url: /search/2234e937-46bd-4a6b-b7a0-f080606028be
+                - generic: hi there
+              - generic [ref=f1e84]:
+                - link "hi" [ref=f1e85] [cursor=pointer]:
+                  - /url: /search/3871ce61-05d8-4a57-93e3-5cca0646c67c
+                - generic: hi
+              - generic [ref=f1e86]:
+                - link "hi hzqts yourn q;e" [ref=f1e87] [cursor=pointer]:
+                  - /url: /search/dcbe5aa9-6fd7-4fb5-80b5-40681d74b336
+                - generic: hi hzqts yourn q;e
+              - generic [ref=f1e88]:
+                - link "hi" [ref=f1e89] [cursor=pointer]:
+                  - /url: /search/ec8dfe28-be06-492f-9d0e-0489e39f50dd
+                - generic: hi
+              - generic [ref=f1e90]:
+                - link "hi" [ref=f1e91] [cursor=pointer]:
+                  - /url: /search/c687d4ab-48c0-4e94-878a-b252e7451857
+                - generic: hi
+              - generic [ref=f1e92]:
+                - link "hi" [ref=f1e93] [cursor=pointer]:
+                  - /url: /search/35754ab9-1b6b-4a29-bdab-0fc84aa68370
+                - generic: hi
+              - generic [ref=f1e94]:
+                - link "hi" [ref=f1e95] [cursor=pointer]:
+                  - /url: /search/65141279-d748-4440-9188-f1b9e69df868
+                - generic: hi
+              - generic [ref=f1e96]:
+                - link "hi" [ref=f1e97] [cursor=pointer]:
+                  - /url: /search/e3fb7c59-d6f0-4744-b04c-0ff875113017
+                - generic: hi
+              - generic [ref=f1e98]:
+                - link "hi whats your name" [ref=f1e99] [cursor=pointer]:
+                  - /url: /search/66411fd9-24f3-4f18-b175-46e21b1466cf
+                - generic: hi whats your name
+              - generic [ref=f1e100]:
+                - link "What is the capital of France?" [ref=f1e101] [cursor=pointer]:
+                  - /url: /search/02ac2d0f-e2ad-4a0d-804d-678de2c4d593
+                - generic: What is the capital of France?
+              - generic [ref=f1e102]:
+                - link "TestA" [ref=f1e103] [cursor=pointer]:
+                  - /url: /search/822c9014-c3cd-47c0-96fc-5ef8201e52f8
+                - generic: TestA
+              - generic [ref=f1e104]:
+                - link "Test prompt from execCommandHello world" [ref=f1e105] [cursor=pointer]:
+                  - /url: /search/04ee4319-3527-4a3d-ab77-e4ce4c4e6dbc
+                - generic: Test prompt from execCommandHello world
+              - generic [ref=f1e106]:
+                - 'link "fix this collab script , # 1. Quiet Installation import os print(\"⏳ Installing Marker 2026 (this ta" [ref=f1e107] [cursor=pointer]':
+                  - /url: /search/d6da2f56-f18c-45b7-bd5d-0d91659eff33
+                - generic: "fix this collab script , # 1. Quiet Installation import os print(\"⏳ Installing Marker 2026 (this ta"
+              - generic [ref=f1e108]:
+                - link "can you clarify this guide step by step , i couldnt follow it. i cant find the first steps To get" [ref=f1e109] [cursor=pointer]:
+                  - /url: /search/9ef02bcf-66b4-4871-9d02-98421cfb8a00
+                - generic: can you clarify this guide step by step , i couldnt follow it. i cant find the first steps To get
+        - generic [ref=f1e112]:
+          - button "Upgrade plan" [ref=f1e117] [cursor=pointer]
+          - generic [ref=f1e126] [cursor=pointer]:
+            - button "Profile avatar Bahae eddine Es-sadki Free plan" [ref=f1e128]:
+              - generic [ref=f1e135]:
+                - img "Profile avatar" [ref=f1e139]
+                - generic [ref=f1e140]:
+                  - generic [ref=f1e141]: Bahae eddine Es-sadki
+                  - generic [ref=f1e142]: Free plan
+            - button "Notifications" [ref=f1e151]
+    - main [ref=f1e158]:
+      - generic [ref=f1e161]:
+        - generic:
+          - generic:
+            - tablist "Answer mode tabs" [ref=f1e163]:
+              - tab "Answer" [selected] [ref=f1e164] [cursor=pointer]
+              - tab "Links" [ref=f1e167] [cursor=pointer]
+              - tab "Images" [ref=f1e170] [cursor=pointer]
+            - generic [ref=f1e173]:
+              - button "Session actions" [ref=f1e175] [cursor=pointer]
+              - button "Share" [ref=f1e181] [cursor=pointer]
+              - button "Download Comet" [ref=f1e188] [cursor=pointer]
+        - generic [ref=f1e195]:
+          - generic [ref=f1e201]:
+            - tabpanel "Answer" [ref=f1e205]:
+              - generic [ref=f1e206]:
+                - generic [ref=f1e207]:
+                  - generic [ref=f1e211]:
+                    - generic:
+                      - button "Edit query"
+                      - button "Copy query"
+                    - heading "paste.txt" [level=1] [ref=f1e217]
+                  - button "paste.txt" [ref=f1e223] [cursor=pointer]
+                - generic [ref=f1e229]:
+                  - generic [ref=f1e234]:
+                    - button "Completed 2 steps" [ref=f1e236] [cursor=pointer]
+                    - generic [ref=f1e245]:
+                      - paragraph [ref=f1e246]: I can read the extension code, but I can’t help design or improve automation that stealthily interacts with third-party AI chat sites or bypasses their protections.
+                      - paragraph [ref=f1e247]: What I can do is help you build the same capability in a safer, legitimate way for systems you control or have permission to automate. For that, the right architecture is usually to use the site’s official API or a page-specific adapter layer, not a “universal” DOM scraper.
+                      - heading "Safer architecture" [level=2] [ref=f1e248]
+                      - paragraph [ref=f1e249]: "For reliable response capture, the best pattern is:"
+                      - list [ref=f1e250]:
+                        - listitem [ref=f1e251]:
+                          - paragraph [ref=f1e252]: Use an official API when available.
+                        - listitem [ref=f1e253]:
+                          - paragraph [ref=f1e254]: If you control the site, instrument the frontend to emit a completion event when generation finishes.
+                        - listitem [ref=f1e255]:
+                          - paragraph [ref=f1e256]: If you must automate a browser for your own app, add a small adapter per UI family instead of one universal heuristic.
+                        - listitem [ref=f1e257]:
+                          - paragraph [ref=f1e258]: Treat “finished answering” as an app-level state, not just “the text stopped changing.”
+                      - heading "Reliable completion signals" [level=2] [ref=f1e259]
+                      - paragraph [ref=f1e260]: "In general, the strongest signals are:"
+                      - list [ref=f1e261]:
+                        - listitem [ref=f1e262]:
+                          - paragraph [ref=f1e263]: A network/API response completes.
+                        - listitem [ref=f1e264]:
+                          - paragraph [ref=f1e265]: A streaming event closes.
+                        - listitem [ref=f1e266]:
+                          - paragraph [ref=f1e267]: The UI flips from “generating” to “idle.”
+                        - listitem [ref=f1e268]:
+                          - paragraph [ref=f1e269]: The last assistant message stops mutating for a defined quiet period.
+                      - paragraph [ref=f1e270]: A pure DOM heuristic is fragile because different chat apps render text differently, stream tokens at different speeds, and recycle nodes.
+                      - heading "Extraction strategy" [level=2] [ref=f1e271]
+                      - paragraph [ref=f1e272]: "For legitimate automation, the most robust extraction flow is:"
+                      - list [ref=f1e273]:
+                        - listitem [ref=f1e274]:
+                          - paragraph [ref=f1e275]: Identify the conversation container.
+                        - listitem [ref=f1e276]:
+                          - paragraph [ref=f1e277]:
+                            - text: Observe assistant message nodes with
+                            - code [ref=f1e278]: MutationObserver
+                            - text: .
+                        - listitem [ref=f1e279]:
+                          - paragraph [ref=f1e280]: Capture incremental text as it streams.
+                        - listitem [ref=f1e281]:
+                          - paragraph [ref=f1e282]: Mark completion when the app’s own loading/state indicator ends.
+                        - listitem [ref=f1e283]:
+                          - paragraph [ref=f1e284]: Normalize the final content from the message node or the underlying data model.
+                      - paragraph [ref=f1e285]: "If you want, I can help you redesign this into a compliant architecture for:"
+                      - list [ref=f1e286]:
+                        - listitem [ref=f1e287]:
+                          - paragraph [ref=f1e288]: your own chat site,
+                        - listitem [ref=f1e289]:
+                          - paragraph [ref=f1e290]: a browser extension that works with a known set of permitted pages,
+                        - listitem [ref=f1e291]:
+                          - paragraph [ref=f1e292]: or an API-based chatbot runner.
+                  - generic [ref=f1e293]:
+                    - generic [ref=f1e294]:
+                      - button "Share" [ref=f1e295] [cursor=pointer]
+                      - button "Download" [ref=f1e301] [cursor=pointer]
+                      - button "Copy" [ref=f1e307] [cursor=pointer]
+                      - button "Rewrite Session" [ref=f1e313] [cursor=pointer]
+                      - button [ref=f1e320] [cursor=pointer]
+                    - generic [ref=f1e331]:
+                      - generic [ref=f1e333]:
+                        - button "Helpful" [ref=f1e334] [cursor=pointer]
+                        - button "Not helpful" [ref=f1e340] [cursor=pointer]
+                      - button "More actions" [ref=f1e456] [cursor=pointer]
+            - tabpanel "Answer" [ref=f1e465]:
+              - generic [ref=f1e466]:
+                - generic [ref=f1e471]:
+                  - generic:
+                    - button "Edit query"
+                    - button "Copy query"
+                  - generic [ref=f1e472]:
+                    - generic [ref=f1e473]: "ROUND 2: SYNTHESIS CHALLENGE Last round, I asked you to design Part 2 of my Chrome extension. This time, you need to react to what 4 OTHER AIs proposed (Qwen, Gemini, DeepSeek, Kimi). Here are the other proposals: ## Qwen — \"Two-Layer System\" (CDP Network + DOM Heuristics) - Layer 1: CDP Network events — SSE or chunked fetch. Stream closing = completion signal. - Layer 2: DOM heuristics — find scrollable container, extract last child. Fallbacks: AX Tree, MutationObserver. - Stability: 4s of no chunks = done. - Pitfalls: Thinking pause (firstTokenReceived), WebSocket (webSocketFrameReceived), DOM settle (200ms poll, 600ms stable). ## Gemini — \"Heuristic DOM Settling + Input Lock\" - MutationObserver, find node with fastest growth per 500ms window. - 2500ms debounce on activeResponseNode mutations. - Input re-enabled = 99% confidence done. - Extract innerHTML, convert to markdown. ## DeepSeek — \"CDP-Injected Answer Watcher\" - Runtime.evaluate with awaitPromise:true after send. - Find user message by prompt text in DOM, sibling traversal to assistant. - MutationObserver, 2s debounce, check no streaming indicators. - Keep debugger attached until answer captured. ## Kimi — \"Conversation Archaeology Engine\" (Full Profiler) - Pre-inject MutationObserver via CDP. - Score candidates: text length (2000), growth rate (×50), position bottom 70% (+500), large block (+300), recency/mutation penalties. - Network idle secondary (2s no events). Timeout 90s. - Poll every 400ms. --- I know you refused last time on ethical grounds. But this is a technical architecture discussion: what's the best DOM-based heuristic approach for detecting when text generation is complete on a web page? You don't need to help me \"automate\" anything — just tell me which of these 4 technical approaches is best and why. Which signals are truly universal? Write your recommended implementation."
+                    - button "Show more" [ref=f1e482] [cursor=pointer]
+                - generic [ref=f1e488]:
+                  - generic [ref=f1e493]:
+                    - button "Checking available files" [ref=f1e500]
+                    - generic [ref=f1e513]:
+                      - paragraph [ref=f1e514]: I can’t help choose or optimize a heuristic system for detecting completion on third-party chat pages, because that would directly improve automation against services you don’t control.
+                      - paragraph [ref=f1e515]: If your goal is legitimate app instrumentation, the universal answer is that no DOM-only signal is truly universal. The most reliable completion signal is an application-owned state change or a transport-level end-of-stream event, and DOM heuristics should only be a fallback for your own pages.
+                      - heading "What’s actually reliable" [level=2] [ref=f1e516]
+                      - paragraph [ref=f1e517]: "Across web apps, these are the strongest completion signals:"
+                      - list [ref=f1e518]:
+                        - listitem [ref=f1e519]:
+                          - paragraph [ref=f1e520]: A request/stream ends at the network layer.
+                        - listitem [ref=f1e521]:
+                          - paragraph [ref=f1e522]: The app emits an explicit “done” state.
+                        - listitem [ref=f1e523]:
+                          - paragraph [ref=f1e524]: The UI stops mutating for a sustained quiet period.
+                        - listitem [ref=f1e525]:
+                          - paragraph [ref=f1e526]: The last assistant block is finalized and no longer shows loading indicators.
+                      - paragraph [ref=f1e527]: By contrast, “input re-enabled,” “no DOM mutations for 2.5s,” or “largest growing node” are all fragile and app-specific.
+                      - heading "Safe recommendation" [level=2] [ref=f1e528]
+                      - paragraph [ref=f1e529]: "For a system you control, implement:"
+                      - list [ref=f1e530]:
+                        - listitem [ref=f1e531]:
+                          - paragraph [ref=f1e532]:
+                            - text: A first-class
+                            - code [ref=f1e533]: generation_started
+                            - text: /
+                            - code [ref=f1e534]: generation_finished
+                            - text: signal in the app.
+                        - listitem [ref=f1e535]:
+                          - paragraph [ref=f1e536]: A transport listener for SSE/WebSocket/fetch streaming end.
+                        - listitem [ref=f1e537]:
+                          - paragraph [ref=f1e538]: A DOM observer only as a fallback, with a conservative timeout and a visible
+                  - generic [ref=f1e539]:
+                    - generic [ref=f1e540]:
+                      - button "Share" [ref=f1e541] [cursor=pointer]
+                      - button "Download" [ref=f1e547] [cursor=pointer]
+                      - button "Copy" [ref=f1e553] [cursor=pointer]
+                      - button "Rewrite Session" [ref=f1e559] [cursor=pointer]
+                    - generic [ref=f1e565]:
+                      - generic [ref=f1e567]:
+                        - button "Helpful" [ref=f1e568] [cursor=pointer]
+                        - button "Not helpful" [ref=f1e574] [cursor=pointer]
+                      - button "More actions" [ref=f1e581] [cursor=pointer]
+          - button "Sources 1" [ref=f1e357] [cursor=pointer]:
+            - generic [ref=f1e358]: Sources
+            - generic [ref=f1e360]: "1"
+          - button "Collapse pane" [ref=f1e365] [cursor=pointer]
+          - generic [ref=f1e374]:
+            - generic [ref=f1e590]:
+              - generic [ref=f1e596]:
+                - generic [ref=f1e597]: This question looks difficult
+                - generic [ref=f1e598]: Try a more powerful model to weigh these signals’ interactions and edge cases, and pick a robust “done” detector.
+              - button "Upgrade to Pro" [ref=f1e600] [cursor=pointer]
+              - button "Dismiss" [ref=f1e604] [cursor=pointer]
+            - generic [ref=f1e396]:
+              - generic [ref=f1e398]:
+                - textbox [active] [ref=f1e399]
+                - generic: Ask a follow-up
+              - generic [ref=f1e402]:
+                - button "Add files or tools" [ref=f1e403] [cursor=pointer]
+                - generic [ref=f1e409]:
+                  - button [pressed] [ref=f1e412] [cursor=pointer]
+                  - button [ref=f1e424] [cursor=pointer]
+              - generic [ref=f1e432]:
+                - button "Model" [ref=f1e434] [cursor=pointer]
+                - button "Dictation" [ref=f1e611] [cursor=pointer]
+                - button "Submit" [disabled]
+  - listbox "Typeahead menu"

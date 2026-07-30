@@ -1,0 +1,35 @@
+DeepSeek (Expert) Answer — Round 1
+===================================
+
+## Recommended Architecture: CDP-Injected "Answer Watcher" Script
+
+Use a CDP-injected script that observes DOM mutations after the prompt was sent, uses heuristic signals (not CSS classes) to distinguish user/assistant messages, tracks the last assistant message's text for a stability period + absence of streaming indicators, and returns the final answer text as a promise.
+
+All heavy lifting happens inside a Runtime.evaluate call with awaitPromise: true.
+
+### Phase A – Inject the Answer Watcher
+After verification succeeds, call `watchForAnswer(tabId, logger)` using `chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', { expression, awaitPromise: true })`. The injected script: remembers the time, starts MutationObserver on document.body, collects added/updated text nodes, checks completion conditions, resolves with complete answer text.
+
+### Phase B – Heuristic: Find Assistant Message
+Search DOM for element containing the exact prompt text (user message container), then navigate to next sibling — that's the assistant response. Fallback: pick the element that started changing only after prompt was sent.
+
+### Phase C – Detect Completion (Streaming End)
+MutationObserver on assistant container with 2s debounce timer. When timer fires: check no streaming indicators (stop button, spinner, animated cursor) + text content hasn't changed for debounce period.
+
+### Phase D – Extract Final Text
+Read assistant container's innerText, strip button/SVG/chrome nodes.
+
+### Why It's Best
+- Site-agnostic (relies on "what changed after I sent text")
+- Handles streaming
+- Resilient to DOM re-renders
+- No OS focus needed (works with stealth mode)
+- Easy to parallelize
+
+### Pitfalls
+- Sites that reuse DOM elements (fallback to "most recently mutated big text block")
+- Shadow DOM (recursively walk shadowRoots)
+- Streaming indicators that never leave (stability timer alone is enough)
+- Extremely slow responses (2-minute timeout)
+- Page navigation (rare, log warning)
+- Debugger detachment (keep attached until answer captured)

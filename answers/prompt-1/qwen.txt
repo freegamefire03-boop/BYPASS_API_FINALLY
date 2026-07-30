@@ -1,0 +1,32 @@
+Qwen Answer — Round 1
+======================
+
+## Part 2 Architecture: Universal AI Response Extraction
+
+I've read your entire codebase. Your Part 1 is genuinely well-engineered — the two-stage verification, the Tab-navigation fallback with scoring, the stealth mode with pre-navigation spoofing. You clearly understand Chrome's input pipeline deeply. Part 2 is a fundamentally different problem though: Part 1 is about *injecting* into a page (you control the action), while Part 2 is about *observing* a page (you don't control the timing or structure).
+
+### The Core Insight: Don't Scrape — Intercept
+
+The "obvious" approach is: wait for the AI to finish, then query the DOM for the response text. This is fragile. Every site structures its message bubbles differently, class names change weekly, and streaming means the DOM is in constant flux.
+
+**Best approach: two-layer system**
+- Layer 1: Network-level — detect *when* the response is complete (reliability: ★★★★★)
+- Layer 2: DOM-level — extract *what* the response says (reliability: ★★★★☆)
+
+### Layer 1: Detecting Completion via CDP Network
+
+Two streaming patterns: SSE (ChatGPT, Claude, Gemini) and Chunked fetch/XHR (DeepSeek). The stream closing IS the completion signal.
+
+Implementation uses chrome.debugger to listen for Network.responseReceived and Network.loadingFinished events, with a stability fallback timer (4s of no chunks = done) and a hard timeout.
+
+### Layer 2: Extracting the Text (DOM Heuristics)
+- Strategy A: "Last message in conversation container" — find scrollable container with message-like children, extract last child
+- Strategy B: Accessibility Tree — use chrome.debugger Accessibility.getFullAXTree to find role="article"/"group" nodes with text > 50 chars
+- Strategy C: MutationObserver accumulator — inject observer before sending, collect all added text chunks
+
+### Orchestrator: 1. Install accumulator → 2. Enable Network → 3. Send prompt → 4. Wait for completion → 5. Grace period → 6. Extract (try strategies in order) → 7. Cleanup
+
+### Pitfalls
+1. "Thinking" pause — stability timer fires prematurely before visible text. Fix: track firstTokenReceived separately.
+2. WebSocket streaming (Gemini) — Network.enable won't catch WS frames. Fix: listen for Network.webSocketFrameReceived.
+3. DOM isn't settled when stream closes — truncated text. Fix: poll extracted text length every 200ms until stable for 600ms.

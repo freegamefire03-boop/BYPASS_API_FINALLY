@@ -1,0 +1,1572 @@
+- generic [ref=f1e4]:
+  - complementary [ref=f1e6]:
+    - generic [ref=f1e7]:
+      - link "New Chat" [ref=f1e8] [cursor=pointer]:
+        - /url: /?chat_enter_method=new_chat
+      - button "Hide Sidebar" [ref=f1e9] [cursor=pointer]
+    - link "New Chat Ctrl K" [ref=f1e17] [cursor=pointer]:
+      - /url: /?chat_enter_method=new_chat
+      - generic [ref=f1e18]:
+        - generic [ref=f1e19]: New Chat
+        - generic [ref=f1e24]:
+          - generic [ref=f1e25]: Ctrl
+          - generic [ref=f1e26]: K
+    - generic [ref=f1e27]:
+      - region "Primary Navigation" [ref=f1e28]:
+        - generic [ref=f1e29]:
+          - link "Plugins" [ref=f1e30] [cursor=pointer]:
+            - /url: /plugins
+          - link "Scheduled Tasks" [ref=f1e38] [cursor=pointer]:
+            - /url: /tasks
+          - button "Collapse" [expanded] [ref=f1e50] [cursor=pointer]
+        - generic [ref=f1e66]:
+          - link "Swarm" [ref=f1e67] [cursor=pointer]:
+            - /url: https://www.kimi.com/products/kimi-work
+          - link "Slides" [ref=f1e251] [cursor=pointer]:
+            - /url: /code?from=kimi_homepage_sidebar
+          - link "Deep Research" [ref=f1e260] [cursor=pointer]:
+            - /url: /deep-research
+          - link "Websites" [ref=f1e270] [cursor=pointer]:
+            - /url: /websites
+          - link "Docs" [ref=f1e279] [cursor=pointer]:
+            - /url: /docs
+          - link "Sheets" [ref=f1e287] [cursor=pointer]:
+            - /url: /sheets
+          - link "Kimi Work Beta" [ref=f1e295] [cursor=pointer]:
+            - /url: https://www.kimi.com/products/kimi-work
+            - generic [ref=f1e477]:
+              - generic [ref=f1e478]: Kimi Work
+              - generic "Beta" [ref=f1e479]
+          - link "Kimi Code" [ref=f1e480] [cursor=pointer]:
+            - /url: /code?from=kimi_homepage_sidebar
+          - generic [ref=f1e490]:
+            - button "Kimi Claw" [ref=f1e491] [cursor=pointer]
+            - button "Add Claw"
+      - region [ref=f1e499]:
+        - generic [ref=f1e500]:
+          - button "Chats" [expanded] [ref=f1e501] [cursor=pointer]
+          - generic:
+            - link "All Chats":
+              - /url: /chat/history
+        - list [ref=f1e509]:
+          - listitem [ref=f1e510]:
+            - generic [ref=f1e511]:
+              - link "Unified AI Reader Design" [ref=f1e1445] [cursor=pointer]:
+                - /url: /chat/19fb013e-8782-8538-8000-092cf2cd51a8?chat_enter_method=history
+              - generic [ref=f1e515]:
+                - button "More"
+          - listitem [ref=f1e528]:
+            - generic [ref=f1e529]:
+              - link "hi who are you" [ref=f1e530] [cursor=pointer]:
+                - /url: /chat/19fa9a2c-48a2-8332-8000-092c1a544863?chat_enter_method=history
+              - generic [ref=f1e533]:
+                - button "More"
+          - listitem [ref=f1e536]:
+            - generic [ref=f1e537]:
+              - link "MCP Server Extension Design" [ref=f1e538] [cursor=pointer]:
+                - /url: /chat/19fa3316-3462-8e3b-8000-092c6878335c?chat_enter_method=history
+              - generic [ref=f1e541]:
+                - button "More"
+          - listitem [ref=f1e544]:
+            - generic [ref=f1e545]:
+              - link "Interactive Learning Plan Site" [ref=f1e546] [cursor=pointer]:
+                - /url: /chat/19f04361-7922-8ef0-8000-092cd9ad1905?chat_enter_method=history
+              - generic [ref=f1e549]:
+                - button "More"
+          - listitem [ref=f1e550]:
+            - generic [ref=f1e551]:
+              - link "QR Control Patch" [ref=f1e552] [cursor=pointer]:
+                - /url: /chat/19ee7a0a-0de2-8626-8000-092c3fd2a862?chat_enter_method=history
+              - generic [ref=f1e555]:
+                - button "More"
+          - listitem [ref=f1e556]:
+            - generic [ref=f1e557]:
+              - link "Football Match Simulation Tech" [ref=f1e558] [cursor=pointer]:
+                - /url: /chat/19edfdab-c1f2-8328-8000-092cfa48cd51?chat_enter_method=history
+              - generic [ref=f1e561]:
+                - button "More"
+          - listitem [ref=f1e562]:
+            - generic [ref=f1e563]:
+              - link "German App Diff File" [ref=f1e564] [cursor=pointer]:
+                - /url: /chat/19ed1473-e212-85cc-8000-092c220b005a?chat_enter_method=history
+              - generic [ref=f1e567]:
+                - button "More"
+          - listitem [ref=f1e568]:
+            - generic [ref=f1e569]:
+              - link "OCR Live Sync" [ref=f1e570] [cursor=pointer]:
+                - /url: /chat/19ecd608-b022-8f32-8000-092c68894022?chat_enter_method=history
+              - generic [ref=f1e573]:
+                - button "More"
+          - listitem [ref=f1e574]:
+            - generic [ref=f1e575]:
+              - link "Kimi World Cup Token Check" [ref=f1e576] [cursor=pointer]:
+                - /url: /chat/19ecc9e4-7322-8041-8000-092c39e65c92?chat_enter_method=history
+              - generic [ref=f1e579]:
+                - button "More"
+          - listitem [ref=f1e580]:
+            - generic [ref=f1e581]:
+              - link "PLDT-GUESS Tool Overview" [ref=f1e582] [cursor=pointer]:
+                - /url: /chat/19ec0b5a-8192-8a58-8000-092cf1cdea6a?chat_enter_method=history
+              - generic [ref=f1e585]:
+                - button "More"
+          - listitem [ref=f1e586]:
+            - generic [ref=f1e587]:
+              - link "PDF转Markdown原码" [ref=f1e588] [cursor=pointer]:
+                - /url: /chat/19ea84a1-dc52-8472-8000-092c7f1f3579?chat_enter_method=history
+              - generic [ref=f1e591]:
+                - button "More"
+          - listitem [ref=f1e592]:
+            - generic [ref=f1e593]:
+              - link "Extract PDF Tables to Markdown" [ref=f1e594] [cursor=pointer]:
+                - /url: /chat/19ea7f2c-d502-82ad-8000-092cbe40c895?chat_enter_method=history
+              - generic [ref=f1e597]:
+                - button "More"
+          - listitem [ref=f1e598]:
+            - generic [ref=f1e599]:
+              - link "MD Section Sync" [ref=f1e600] [cursor=pointer]:
+                - /url: /chat/19ea7e7f-5c42-8cba-8000-092c39125149?chat_enter_method=history
+              - generic [ref=f1e603]:
+                - button "More"
+          - listitem [ref=f1e604]:
+            - generic [ref=f1e605]:
+              - link "Interactive Sun Trajectory Viz" [ref=f1e606] [cursor=pointer]:
+                - /url: /chat/19ea2c9c-5992-82a1-8000-092c642ff8b5?chat_enter_method=history
+              - generic [ref=f1e609]:
+                - button "More"
+          - listitem [ref=f1e610]:
+            - generic [ref=f1e611]:
+              - link "AI PPT生成方案" [ref=f1e612] [cursor=pointer]:
+                - /url: /chat/19dd0c94-45e2-8eba-8000-092ca3226431?chat_enter_method=history
+              - generic [ref=f1e615]:
+                - button "More"
+    - generic [ref=f1e617]:
+      - button "Invite to Earn" [ref=f1e619] [cursor=pointer]:
+        - generic [ref=f1e635]:
+          - generic [ref=f1e636]: Invite to Earn
+          - generic [ref=f1e638]: Up to 1-year K3 Credits
+      - generic [ref=f1e640]:
+        - generic [ref=f1e642] [cursor=pointer]:
+          - button "Bahae eddine Es-sadki Bahae eddine Es-sadki" [ref=f1e643]:
+            - img "Bahae eddine Es-sadki" [ref=f1e645]
+            - generic [ref=f1e646]: Bahae eddine Es-sadki
+          - button "Upgrade" [ref=f1e647]
+        - button "Get App" [ref=f1e649] [cursor=pointer]
+  - generic [ref=f1e654]:
+    - generic [ref=f1e657]:
+      - banner [ref=f1e658] [cursor=pointer]:
+        - heading "Unified AI Reader Design" [level=2] [ref=f1e1458]
+      - generic [ref=f1e662]: "1"
+    - generic [ref=f1e670]:
+      - generic [ref=f1e672]:
+        - generic [ref=f1e675]:
+          - generic [ref=f1e678] [cursor=pointer]:
+            - img "txt" [ref=f1e679]
+            - generic [ref=f1e680]:
+              - paragraph [ref=f1e681]: Subject 🚨 I need y
+              - generic [ref=f1e683]:
+                - generic [ref=f1e684]: TXT
+                - generic [ref=f1e685]: 49.21 KB
+          - generic [ref=f1e687]:
+            - generic [ref=f1e688] [cursor=pointer]: Copy
+            - generic [ref=f1e693] [cursor=pointer]: Share
+        - generic [ref=f1e704]:
+          - generic [ref=f1e707]:
+            - generic [ref=f1e708] [cursor=pointer]: Hybrid Scraping of Markdown and Shadow DOM Content in Extensions
+            - generic [ref=f1e718]:
+              - generic [ref=f1e719]: The user wants me to read their Chrome extension codebase and provide architectural recommendations for "Part 2" — reading AI responses from chat sites after sending prompts. They want a universal approach that works across different chat sites without custom code per site.
+              - generic [ref=f1e720]: "Let me analyze their current codebase first to understand what they're doing:"
+              - list [ref=f1e721]:
+                - listitem [ref=f1e722]:
+                  - generic [ref=f1e723]:
+                    - strong [ref=f1e724]: Current architecture
+                    - text: ": MV3 extension with background service worker, popup UI"
+                - listitem [ref=f1e725]:
+                  - generic [ref=f1e726]:
+                    - strong [ref=f1e727]: Part 1 (Sending)
+                    - text: ": Uses Chrome debugger API to inject text and simulate keystrokes. Has two modes:"
+                  - list [ref=f1e728]:
+                    - listitem [ref=f1e729]:
+                      - generic [ref=f1e730]: "Auto-cycle mode: Opens tabs in parallel, cycles through making each active briefly to send input"
+                    - listitem [ref=f1e731]:
+                      - generic [ref=f1e732]: "Stealth mode: Opens as about:blank, spoofs visibility/focus, navigates to real URL, uses CDP DOM.focus and Input.insertText"
+                - listitem [ref=f1e733]:
+                  - generic [ref=f1e734]:
+                    - strong [ref=f1e735]: Current verification
+                    - text: ": Two-stage — checks URL change or input clearing to confirm prompt was sent"
+              - generic [ref=f1e736]: "Now they need Part 2: Reading the AI's response text reliably across different chat sites."
+              - generic [ref=f1e737]: "Key challenges:"
+              - list [ref=f1e738]:
+                - listitem [ref=f1e739]:
+                  - generic [ref=f1e740]: Different DOM structures across ChatGPT, Claude, Gemini, DeepSeek, etc.
+                - listitem [ref=f1e741]:
+                  - generic [ref=f1e742]: Streaming responses — text appears gradually
+                - listitem [ref=f1e743]:
+                  - generic [ref=f1e744]: Need to detect when response is "complete"
+                - listitem [ref=f1e745]:
+                  - generic [ref=f1e746]: Need to extract the full text without site-specific selectors
+              - generic [ref=f1e747]: "Let me think about the best architectural approach:"
+              - strong [ref=f1e749]: "Strategy for universal response detection:"
+              - list [ref=f1e750]:
+                - listitem [ref=f1e751]:
+                  - generic [ref=f1e752]:
+                    - strong [ref=f1e753]: MutationObserver-based detection
+                    - text: — Watch for DOM changes in the conversation area. This is the most universal approach because all chat sites render text into the DOM.
+              - list [ref=f1e754]:
+                - listitem [ref=f1e755]:
+                  - generic [ref=f1e756]:
+                    - strong [ref=f1e757]: Heuristic DOM scanning
+                    - text: "— Instead of hardcoded selectors, use heuristics to find the \"latest response\" or \"main conversation container\":"
+                  - list [ref=f1e758]:
+                    - listitem [ref=f1e759]:
+                      - generic [ref=f1e760]: Look for the largest text-containing region
+                    - listitem [ref=f1e761]:
+                      - generic [ref=f1e762]: Look for elements that changed most recently
+                    - listitem [ref=f1e763]:
+                      - generic [ref=f1e764]: Look for elements near the bottom of the page
+                    - listitem [ref=f1e765]:
+                      - generic [ref=f1e766]: Score candidates by text length, position, tag type (article, div with lots of text children)
+                - listitem [ref=f1e767]:
+                  - generic [ref=f1e768]:
+                    - strong [ref=f1e769]: Completion detection heuristics
+                    - text: ":"
+                  - list [ref=f1e770]:
+                    - listitem [ref=f1e771]:
+                      - generic [ref=f1e772]: No new mutations for N seconds (e.g., 2-3 seconds of DOM stability)
+                    - listitem [ref=f1e773]:
+                      - generic [ref=f1e774]: Presence of a "stop" button disappearing (but this is site-specific)
+                    - listitem [ref=f1e775]:
+                      - generic [ref=f1e776]: Cursor/blinking element stops
+                    - listitem [ref=f1e777]:
+                      - generic [ref=f1e778]: Specific text patterns ("Thinking...", loading indicators disappearing)
+                    - listitem [ref=f1e779]:
+                      - generic [ref=f1e780]: Network idle (via CDP Network domain if using debugger)
+                - listitem [ref=f1e781]:
+                  - generic [ref=f1e782]:
+                    - strong [ref=f1e783]: Text extraction
+                    - text: ":"
+                  - list [ref=f1e784]:
+                    - listitem [ref=f1e785]:
+                      - generic [ref=f1e786]: Extract text from the identified response container
+                    - listitem [ref=f1e787]:
+                      - generic [ref=f1e788]: Handle markdown rendering (sites render HTML, need to extract text content or preserve markdown)
+                    - listitem [ref=f1e789]:
+                      - generic [ref=f1e790]: Distinguish between user message and AI response
+              - strong [ref=f1e792]: "Best architectural recommendation:"
+              - generic [ref=f1e793]:
+                - text: I should recommend a
+                - strong [ref=f1e794]: hybrid universal extractor
+                - text: "that combines:"
+              - generic [ref=f1e795]:
+                - text: A.
+                - strong [ref=f1e796]: CDP Runtime.evaluate with MutationObserver
+                - text: (since they already use debugger API, they can inject a persistent observer) B.
+                - strong [ref=f1e797]: Heuristic scoring
+                - text: to identify the AI response container without site-specific selectors C.
+                - strong [ref=f1e798]: Stability-based completion detection
+                - text: (DOM mutation quiet period) D.
+                - strong [ref=f1e799]: Periodic polling fallback
+                - text: for sites that don't stream
+              - generic [ref=f1e800]: "Let me structure a comprehensive answer:"
+              - list [ref=f1e801]:
+                - listitem [ref=f1e802]:
+                  - generic [ref=f1e803]:
+                    - strong [ref=f1e804]: High-level architecture
+                    - text: — How to integrate Part 2 into their existing flow
+                - listitem [ref=f1e805]:
+                  - generic [ref=f1e806]:
+                    - strong [ref=f1e807]: Universal response detection strategy
+                    - text: — MutationObserver + heuristics
+                - listitem [ref=f1e808]:
+                  - generic [ref=f1e809]:
+                    - strong [ref=f1e810]: Completion detection
+                    - text: — Multi-signal approach (DOM stability, network idle, visual indicators)
+                - listitem [ref=f1e811]:
+                  - generic [ref=f1e812]:
+                    - strong [ref=f1e813]: Text extraction
+                    - text: — Content extraction with formatting preservation
+                - listitem [ref=f1e814]:
+                  - generic [ref=f1e815]:
+                    - strong [ref=f1e816]: Implementation sketch
+                    - text: — Concrete code patterns they can use
+                - listitem [ref=f1e817]:
+                  - generic [ref=f1e818]:
+                    - strong [ref=f1e819]: Pitfalls and mitigations
+                    - text: — Anti-detection, race conditions, dynamic content, rate limits
+              - generic [ref=f1e820]:
+                - text: Since they already use the debugger API extensively, I should leverage that — they can inject a script via
+                - code [ref=f1e821]: Page.addScriptToEvaluateOnNewDocument
+                - text: or use
+                - code [ref=f1e822]: Runtime.evaluate
+                - text: to set up observers.
+              - generic [ref=f1e823]: "Actually, the cleanest approach for a universal extractor:"
+              - strong [ref=f1e825]: "The \"Conversation Archaeology\" Approach:"
+              - list [ref=f1e826]:
+                - listitem [ref=f1e827]:
+                  - generic [ref=f1e828]: Don't try to find the specific response container immediately
+                - listitem [ref=f1e829]:
+                  - generic [ref=f1e830]:
+                    - text: Set up a MutationObserver on
+                    - code [ref=f1e831]: document.body
+                    - text: (or the largest scrollable container) BEFORE sending the prompt
+                - listitem [ref=f1e832]:
+                  - generic [ref=f1e833]: "Record all mutations, then after sending, analyze the mutation log to identify:"
+                  - list [ref=f1e834]:
+                    - listitem [ref=f1e835]:
+                      - generic [ref=f1e836]: Which elements grew the most in text content
+                    - listitem [ref=f1e837]:
+                      - generic [ref=f1e838]: Which elements appeared at the bottom of the conversation
+                    - listitem [ref=f1e839]:
+                      - generic [ref=f1e840]: The "last" message in the thread
+              - strong [ref=f1e842]: "Better yet — The \"Before/After Diff\" Approach:"
+              - list [ref=f1e843]:
+                - listitem [ref=f1e844]:
+                  - generic [ref=f1e845]: Before sending, capture a fingerprint of the current DOM (text content hashes of major containers, or element tree)
+                - listitem [ref=f1e846]:
+                  - generic [ref=f1e847]: After sending, continuously monitor
+                - listitem [ref=f1e848]:
+                  - generic [ref=f1e849]: The "new" large text block that appears and stops growing is the response
+              - strong [ref=f1e851]: "For completion detection, multi-signal:"
+              - list [ref=f1e852]:
+                - listitem [ref=f1e853]:
+                  - generic [ref=f1e854]: "Signal 1: DOM mutation quiet period (no text changes for 2-3 seconds)"
+                - listitem [ref=f1e855]:
+                  - generic [ref=f1e856]: "Signal 2: Network idle (via CDP Network domain — no network activity for 1-2 seconds)"
+                - listitem [ref=f1e857]:
+                  - generic [ref=f1e858]: "Signal 3: Scroll height stabilization"
+                - listitem [ref=f1e859]:
+                  - generic [ref=f1e860]: "Signal 4: Absence of loading indicators (heuristic: look for elements with \"thinking\", \"loading\", spinner classes)"
+              - strong [ref=f1e862]: "For extraction:"
+              - list [ref=f1e863]:
+                - listitem [ref=f1e864]:
+                  - generic [ref=f1e865]:
+                    - text: Once complete, extract
+                    - code [ref=f1e866]: innerText
+                    - text: from the identified container
+                - listitem [ref=f1e867]:
+                  - generic [ref=f1e868]: Optionally preserve markdown by extracting the HTML structure and converting
+              - generic [ref=f1e869]: "Let me also think about integration with their existing code:"
+              - list [ref=f1e870]:
+                - listitem [ref=f1e871]:
+                  - generic [ref=f1e872]:
+                    - text: They should add a new phase after
+                    - code [ref=f1e873]: verifySend
+                    - text: succeeds
+                - listitem [ref=f1e874]:
+                  - generic [ref=f1e875]: This phase attaches an observer, sends the prompt (already done), waits for completion, extracts text
+                - listitem [ref=f1e876]:
+                  - generic [ref=f1e877]: Results should be stored alongside the existing result objects
+              - strong [ref=f1e879]: "Anti-detection considerations:"
+              - list [ref=f1e880]:
+                - listitem [ref=f1e881]:
+                  - generic [ref=f1e882]: Their stealth mode already spoofs visibility — but reading responses might trigger additional bot detection
+                - listitem [ref=f1e883]:
+                  - generic [ref=f1e884]: Some sites check if you're scrolling or if the response is in viewport
+                - listitem [ref=f1e885]:
+                  - generic [ref=f1e886]: They might need to simulate "reading" behavior (scroll into view)
+              - strong [ref=f1e888]: "Specific implementation recommendation:"
+              - generic [ref=f1e889]:
+                - text: I'll recommend a
+                - code [ref=f1e890]: ResponseExtractor
+                - text: "class/module that:"
+              - list [ref=f1e891]:
+                - listitem [ref=f1e892]:
+                  - generic [ref=f1e893]: Injects a lightweight observer script into each tab
+                - listitem [ref=f1e894]:
+                  - generic [ref=f1e895]: Uses a scoring algorithm to identify the response element
+                - listitem [ref=f1e896]:
+                  - generic [ref=f1e897]: Uses a stability timer to detect completion
+                - listitem [ref=f1e898]:
+                  - generic [ref=f1e899]: Returns the extracted text
+              - generic [ref=f1e900]: "The observer script should:"
+              - list [ref=f1e901]:
+                - listitem [ref=f1e902]:
+                  - generic [ref=f1e903]:
+                    - text: Track
+                    - code [ref=f1e904]: childList
+                    - text: and
+                    - code [ref=f1e905]: characterData
+                    - text: mutations
+                - listitem [ref=f1e906]:
+                  - generic [ref=f1e907]: Maintain a map of elements → text length over time
+                - listitem [ref=f1e908]:
+                  - generic [ref=f1e909]: Identify elements that are growing and are near the bottom of the page
+                - listitem [ref=f1e910]:
+                  - generic [ref=f1e911]: Detect when growth stops
+              - generic [ref=f1e912]: Let me draft the actual code architecture they'd use.
+              - generic [ref=f1e913]:
+                - text: Since they use CDP extensively, the implementation would use
+                - code [ref=f1e914]: Runtime.evaluate
+                - text: to inject a function that returns a Promise which resolves when the response is complete.
+              - generic [ref=f1e915]: "Actually, here's a very clean pattern:"
+              - generic [ref=f1e916]:
+                - banner [ref=f1e919]:
+                  - generic [ref=f1e920]:
+                    - generic [ref=f1e921]: JavaScript
+                    - generic [ref=f1e922]: Copy
+                - code [ref=f1e929]: "// Injected via Runtime.evaluate function waitForAIResponse() { return new Promise((resolve) => { let lastText = ''; let stableCount = 0; const candidateSelector = 'body'; // start broad const observer = new MutationObserver((mutations) => { // Find the element with the most new text near the bottom // ... heuristic logic ... const currentText = extractLatestResponse(); if (currentText !== lastText) { lastText = currentText; stableCount = 0; } else { stableCount++; if (stableCount > 10) { // ~2-3 seconds of stability observer.disconnect(); resolve({ text: currentText, complete: true }); } } }); observer.observe(document.body, { childList: true, subtree: true, characterData: true }); // Safety timeout setTimeout(() => { observer.disconnect(); resolve({ text: extractLatestResponse(), complete: false }); }, 120000); }); }"
+              - generic [ref=f1e930]: "But I need to make this much more robust. Let me think about the heuristic for finding the response:"
+              - strong [ref=f1e932]: "Heuristic scoring for response element:"
+              - list [ref=f1e933]:
+                - listitem [ref=f1e934]:
+                  - generic [ref=f1e935]: Element is visible (not display:none)
+                - listitem [ref=f1e936]:
+                  - generic [ref=f1e937]: Contains substantial text (>50 chars typically for AI responses)
+                - listitem [ref=f1e938]:
+                  - generic [ref=f1e939]: Located in the lower portion of the page (responses appear at bottom)
+                - listitem [ref=f1e940]:
+                  - generic [ref=f1e941]: Is a child of a conversation/thread container (has siblings with similar structure)
+                - listitem [ref=f1e942]:
+                  - generic [ref=f1e943]: Recently mutated (text content changed in last few seconds)
+                - listitem [ref=f1e944]:
+                  - generic [ref=f1e945]: Not the input box (can exclude elements matching input selectors)
+              - generic [ref=f1e946]:
+                - strong [ref=f1e947]: "Even better approach — \"Last Message\" heuristic:"
+                - text: "Most chat UIs render messages as a list. The AI response is almost always:"
+              - list [ref=f1e948]:
+                - listitem [ref=f1e949]:
+                  - generic [ref=f1e950]: The last visible message in the thread
+                - listitem [ref=f1e951]:
+                  - generic [ref=f1e952]: Contains more text than the input box
+                - listitem [ref=f1e953]:
+                  - generic [ref=f1e954]: Appears below the user's message
+                - listitem [ref=f1e955]:
+                  - generic [ref=f1e956]: In a container that is NOT an input/textarea
+              - generic [ref=f1e957]: "So the algorithm could be:"
+              - list [ref=f1e958]:
+                - listitem [ref=f1e959]:
+                  - generic [ref=f1e960]: Find all elements with substantial text content (>20 chars)
+                - listitem [ref=f1e961]:
+                  - generic [ref=f1e962]: Exclude inputs, textareas, buttons, nav elements
+                - listitem [ref=f1e963]:
+                  - generic [ref=f1e964]: Sort by Y position (top to bottom)
+                - listitem [ref=f1e965]:
+                  - generic [ref=f1e966]: Take the last few, score them by text length and recency of mutation
+                - listitem [ref=f1e967]:
+                  - generic [ref=f1e968]: Pick the winner
+              - generic [ref=f1e969]:
+                - text: "For completion, the key insight is:"
+                - strong [ref=f1e970]: AI responses stream character by character or chunk by chunk
+                - text: ". So:"
+              - list [ref=f1e971]:
+                - listitem [ref=f1e972]:
+                  - generic [ref=f1e973]: Monitor the candidate element's text length
+                - listitem [ref=f1e974]:
+                  - generic [ref=f1e975]: If text length hasn't increased for X seconds, and the total length is substantial, it's probably done
+                - listitem [ref=f1e976]:
+                  - generic [ref=f1e977]: X should be adaptive (longer for slower models, shorter for fast ones)
+              - generic [ref=f1e978]:
+                - strong [ref=f1e979]: "Network idle detection via CDP:"
+                - text: They can enable the Network domain and listen for
+                - code [ref=f1e980]: Network.loadingFinished
+                - text: /
+                - code [ref=f1e981]: Network.responseReceived
+                - text: . When no network activity occurs for 2+ seconds, that's a strong completion signal. This works especially well for API-based chat sites.
+              - strong [ref=f1e983]: "Combined completion strategy (my recommendation):"
+              - list [ref=f1e984]:
+                - listitem [ref=f1e985]:
+                  - generic [ref=f1e986]: "Primary: DOM stability (no text changes in candidate element for 2.5s)"
+                - listitem [ref=f1e987]:
+                  - generic [ref=f1e988]: "Secondary: Network idle (no network events for 2s) — only if CDP Network enabled"
+                - listitem [ref=f1e989]:
+                  - generic [ref=f1e990]: "Tertiary: Max timeout (60-120s depending on expected response length)"
+                - listitem [ref=f1e991]:
+                  - generic [ref=f1e992]: "Quaternary: Visual indicators (loading spinners, \"Thinking...\" text disappearance)"
+              - generic [ref=f1e993]: "Now let me think about pitfalls:"
+              - list [ref=f1e994]:
+                - listitem [ref=f1e995]:
+                  - generic [ref=f1e996]:
+                    - strong [ref=f1e997]: Multi-turn conversations
+                    - text: — The response might be split into multiple messages, or the site might auto-generate follow-ups. Need to capture only the direct response to the sent prompt.
+                - listitem [ref=f1e998]:
+                  - generic [ref=f1e999]:
+                    - strong [ref=f1e1000]: Markdown/code blocks
+                    - text: — Extracting
+                    - code [ref=f1e1001]: innerText
+                    - text: loses formatting. Should they preserve it? Probably yes — extract HTML and convert to markdown, or at least provide both plain text and HTML.
+                - listitem [ref=f1e1002]:
+                  - generic [ref=f1e1003]:
+                    - strong [ref=f1e1004]: Rate limiting / Cloudflare
+                    - text: — Some sites might block automated reading. Their stealth mode helps, but reading requires the page to actually render, which it should.
+                - listitem [ref=f1e1005]:
+                  - generic [ref=f1e1006]:
+                    - strong [ref=f1e1007]: Dynamic class names
+                    - text: — Sites like ChatGPT use randomized class names. This is why heuristics beat selectors.
+                - listitem [ref=f1e1008]:
+                  - generic [ref=f1e1009]:
+                    - strong [ref=f1e1010]: Iframe-based chats
+                    - text: — Some sites might render chat in iframes. Need to check
+                    - code [ref=f1e1011]: document.querySelectorAll('iframe')
+                    - text: and potentially recurse.
+              - list [ref=f1e1012]:
+                - listitem [ref=f1e1013]:
+                  - generic [ref=f1e1014]:
+                    - strong [ref=f1e1015]: Shadow DOM
+                    - text: — Some sites use shadow DOM for message containers. Need to traverse shadow roots.
+                - listitem [ref=f1e1016]:
+                  - generic [ref=f1e1017]:
+                    - strong [ref=f1e1018]: Memory leaks
+                    - text: — MutationObservers on body with subtree:true can be expensive. Must disconnect them properly.
+              - list [ref=f1e1019]:
+                - listitem [ref=f1e1020]:
+                  - generic [ref=f1e1021]:
+                    - strong [ref=f1e1022]: False positives
+                    - text: — Ads, notifications, or UI updates might be mistaken for responses. Need good exclusion heuristics.
+              - generic [ref=f1e1023]: "Let me structure my response:"
+              - list [ref=f1e1024]:
+                - listitem [ref=f1e1025]:
+                  - generic [ref=f1e1026]:
+                    - strong [ref=f1e1027]: Executive Summary
+                    - text: — The best approach is a "Universal DOM Observer + Heuristic Scorer + Stability Timer" architecture, not site-specific selectors.
+                - listitem [ref=f1e1028]:
+                  - generic [ref=f1e1029]:
+                    - strong [ref=f1e1030]: Core Architecture
+                    - text: —
+                  - list [ref=f1e1031]:
+                    - listitem [ref=f1e1032]:
+                      - generic [ref=f1e1033]: Pre-inject observer before sending prompt
+                    - listitem [ref=f1e1034]:
+                      - generic [ref=f1e1035]: Use CDP Runtime.evaluate to run extraction logic
+                    - listitem [ref=f1e1036]:
+                      - generic [ref=f1e1037]: Combine multiple completion signals
+                    - listitem [ref=f1e1038]:
+                      - generic [ref=f1e1039]: Store results in extension storage
+                - listitem [ref=f1e1040]:
+                  - generic [ref=f1e1041]:
+                    - strong [ref=f1e1042]: The Detection Algorithm (Detailed)
+                    - text: —
+                  - list [ref=f1e1043]:
+                    - listitem [ref=f1e1044]:
+                      - generic [ref=f1e1045]: Mutation tracking
+                    - listitem [ref=f1e1046]:
+                      - generic [ref=f1e1047]: Candidate scoring
+                    - listitem [ref=f1e1048]:
+                      - generic [ref=f1e1049]: Stability detection
+                    - listitem [ref=f1e1050]:
+                      - generic [ref=f1e1051]: Network idle fallback
+                - listitem [ref=f1e1052]:
+                  - generic [ref=f1e1053]:
+                    - strong [ref=f1e1054]: Text Extraction Strategy
+                    - text: —
+                  - list [ref=f1e1055]:
+                    - listitem [ref=f1e1056]:
+                      - generic [ref=f1e1057]: HTML vs plain text
+                    - listitem [ref=f1e1058]:
+                      - generic [ref=f1e1059]: Handling markdown
+                    - listitem [ref=f1e1060]:
+                      - generic [ref=f1e1061]: Shadow DOM / iframes
+                - listitem [ref=f1e1062]:
+                  - generic [ref=f1e1063]:
+                    - strong [ref=f1e1064]: Integration with Existing Code
+                    - text: —
+                  - list [ref=f1e1065]:
+                    - listitem [ref=f1e1066]:
+                      - generic [ref=f1e1067]: Where to hook into background.js
+                    - listitem [ref=f1e1068]:
+                      - generic [ref=f1e1069]: New functions needed
+                    - listitem [ref=f1e1070]:
+                      - generic [ref=f1e1071]: Result storage format
+                - listitem [ref=f1e1072]:
+                  - generic [ref=f1e1073]:
+                    - strong [ref=f1e1074]: Pitfalls & Mitigations
+                    - text: —
+                  - list [ref=f1e1075]:
+                    - listitem [ref=f1e1076]:
+                      - generic [ref=f1e1077]: Anti-bot measures
+                    - listitem [ref=f1e1078]:
+                      - generic [ref=f1e1079]: Performance
+                    - listitem [ref=f1e1080]:
+                      - generic [ref=f1e1081]: Accuracy
+                    - listitem [ref=f1e1082]:
+                      - generic [ref=f1e1083]: Edge cases
+                - listitem [ref=f1e1084]:
+                  - generic [ref=f1e1085]:
+                    - strong [ref=f1e1086]: Code Sketch
+                    - text: — Provide actual implementation they can adapt
+              - generic [ref=f1e1087]: I should be honest that there's no perfect "one size fits all" solution, but this hybrid approach gets them 90%+ coverage with graceful degradation.
+              - generic [ref=f1e1088]: Let me write this out comprehensively.
+          - generic [ref=f1e1090]:
+            - generic [ref=f1e1091]: I've read your entire codebase. It's well-architected — your stealth mode and CDP-based input injection are solid foundations. Here's my honest architectural recommendation for Part 2.
+            - separator [ref=f1e1092]
+            - heading "The Honest Truth" [level=2] [ref=f1e1093]
+            - generic [ref=f1e1094]:
+              - text: "There is no perfect \"one size fits all\" solution that works across every chat site with 100% accuracy. Sites use radically different DOM structures: ChatGPT renders streaming markdown in nested divs with randomized class names, Claude uses article-based threading, Gemini uses custom web components, DeepSeek uses its own patterns."
+              - strong [ref=f1e1095]: Hardcoded selectors die within weeks.
+            - generic [ref=f1e1096]:
+              - text: The best approach is a
+              - strong [ref=f1e1097]: universal heuristic extractor
+              - text: that treats the page like a dynamic signal, not a static document. You observe, score, and infer — you don't query.
+            - separator [ref=f1e1098]
+            - 'heading "Recommended Architecture: The \"Conversation Archaeology\" Engine" [level=2] [ref=f1e1099]'
+            - heading "Core Philosophy" [level=3] [ref=f1e1100]
+            - generic [ref=f1e1101]:
+              - text: Don't
+              - emphasis [ref=f1e1102]: find
+              - text: the response.
+              - strong [ref=f1e1103]: Discover it
+              - text: by watching what changes after the prompt leaves the input box.
+            - heading "Three-Layer Detection Stack" [level=3] [ref=f1e1104]
+            - generic [ref=f1e1105]:
+              - banner [ref=f1e1108]:
+                - generic [ref=f1e1109]:
+                  - generic [ref=f1e1110]: Table
+                  - generic [ref=f1e1111]: Copy
+              - table [ref=f1e1120]:
+                - rowgroup [ref=f1e1121]:
+                  - row [ref=f1e1122]:
+                    - columnheader "Layer" [ref=f1e1123]
+                    - columnheader "Purpose" [ref=f1e1124]
+                    - columnheader "Signal" [ref=f1e1125]
+                - rowgroup [ref=f1e1126]:
+                  - row [ref=f1e1127]:
+                    - cell [ref=f1e1128]:
+                      - strong [ref=f1e1129]: "L1: Mutation Observer"
+                    - cell "Detect where new text is landing" [ref=f1e1130]
+                    - cell "DOM tree + text mutations" [ref=f1e1131]
+                  - row [ref=f1e1132]:
+                    - cell [ref=f1e1133]:
+                      - strong [ref=f1e1134]: "L2: Heuristic Scorer"
+                    - cell "Identify which changed element is the AI response" [ref=f1e1135]
+                    - cell "Position, size, text velocity, tag exclusion" [ref=f1e1136]
+                  - row [ref=f1e1137]:
+                    - cell [ref=f1e1138]:
+                      - strong [ref=f1e1139]: "L3: Stability Timer"
+                    - cell "Know when the response is \"done\"" [ref=f1e1140]
+                    - cell "Text growth stops + network idle + max timeout" [ref=f1e1141]
+            - separator [ref=f1e1142]
+            - heading "How It Works (Step by Step)" [level=2] [ref=f1e1143]
+            - heading "1. Pre-Injection (Before You Send)" [level=3] [ref=f1e1144]
+            - generic [ref=f1e1145]: "Before dispatching Enter, inject a lightweight observer script into the page via CDP:"
+            - generic [ref=f1e1146]:
+              - banner [ref=f1e1149]:
+                - generic [ref=f1e1150]:
+                  - generic [ref=f1e1151]: JavaScript
+                  - generic [ref=f1e1152]: Copy
+              - code [ref=f1e1159]:
+                - text: "// Injected via Page.addScriptToEvaluateOnNewDocument or Runtime.evaluate // This runs BEFORE your prompt is sent function installResponseTracker() { window.__autopromptResponseState = { startTime: Date.now(), candidates: new Map(), // element fingerprint → metadata lastMutationTime: 0, totalMutations: 0, inputExcluded: new Set() // elements we know are input boxes }; const observer = new MutationObserver((mutations) => { const state = window.__autopromptResponseState; state.lastMutationTime = Date.now(); state.totalMutations++; for (const mutation of mutations) { const nodes = mutation.type === 'childList' ? [...mutation.addedNodes] : [mutation.target]; for (const node of nodes) { if (node.nodeType !== Node.ELEMENT_NODE && node.nodeType !== Node.TEXT_NODE) continue; const el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node; if (!el) continue; // Skip known non-response elements if (isExcluded(el, state)) continue; const text = getVisibleText(el); if (text.length < 10) continue; // Too small to be a response const rect = el.getBoundingClientRect(); const fingerprint ="
+                - generic [ref=f1e1160]:
+                  - text: "`"
+                  - generic [ref=f1e1161]: "${el.tagName}"
+                  - text: "|"
+                  - generic [ref=f1e1162]: "${Math.round(rect.x)}"
+                  - text: "|"
+                  - generic [ref=f1e1163]: "${Math.round(rect.y)}"
+                  - text: "`"
+                - text: "; const existing = state.candidates.get(fingerprint); if (existing) { existing.textLength = text.length; existing.lastUpdate = Date.now(); existing.mutationCount++; } else { state.candidates.set(fingerprint, { element: el, textLength: text.length, firstSeen: Date.now(), lastUpdate: Date.now(), mutationCount: 1, y: rect.y, x: rect.x, width: rect.width, height: rect.height }); } } } }); observer.observe(document.body, { childList: true, subtree: true, characterData: true }); window.__autopromptObserver = observer; } function isExcluded("
+                - generic [ref=f1e1164]: el, state
+                - text: ") { const tag = el.tagName?.toLowerCase(); // Exclude inputs, nav, headers, buttons if (['input','textarea','button','nav','header','footer','aside'].includes(tag)) return true; if (el.isContentEditable) return true; if (el.closest('input, textarea, [contenteditable=\"true\"], nav, header, footer')) return true; // Exclude elements that were the input box (mark this before sending) if (el.matches?.('[data-autoprompt-input=\"true\"]')) return true; if (el.closest?.('[data-autoprompt-input=\"true\"]')) return true; const style = window.getComputedStyle(el); if (style.display === 'none' || style.visibility === 'hidden') return true; return false; } function getVisibleText(el) { // Get text but exclude nested interactive elements const clone = el.cloneNode(true); clone.querySelectorAll('button, input, textarea, nav, script, style').forEach(e => e.remove()); return clone.innerText || ''; }"
+            - heading "2. The Heuristic Scorer (Picking the Winner)" [level=3] [ref=f1e1165]
+            - generic [ref=f1e1166]:
+              - text: After sending, poll this state via
+              - code [ref=f1e1167]: Runtime.evaluate
+              - text: ". The AI response is almost always the element that:"
+            - list [ref=f1e1168]:
+              - listitem [ref=f1e1169]:
+                - strong [ref=f1e1171]:
+                  - text: Appeared or grew significantly after
+                  - code [ref=f1e1172]: startTime
+              - listitem [ref=f1e1173]:
+                - generic [ref=f1e1174]:
+                  - strong [ref=f1e1175]: Is positioned in the lower 70% of the viewport
+                  - text: (responses appear at bottom)
+              - listitem [ref=f1e1176]:
+                - generic [ref=f1e1177]:
+                  - strong [ref=f1e1178]: Has the highest text velocity
+                  - text: (most characters added per second during the active period)
+              - listitem [ref=f1e1179]:
+                - generic [ref=f1e1180]:
+                  - strong [ref=f1e1181]: Has a large final text length
+                  - text: (> 100 chars for meaningful responses)
+              - listitem [ref=f1e1182]:
+                - strong [ref=f1e1184]: Is not inside a form or input container
+            - generic [ref=f1e1185]:
+              - banner [ref=f1e1188]:
+                - generic [ref=f1e1189]:
+                  - generic [ref=f1e1190]: JavaScript
+                  - generic [ref=f1e1191]: Copy
+              - code [ref=f1e1198]:
+                - text: "function extractBestResponse() { const state = window.__autopromptResponseState; const candidates = Array.from(state.candidates.values()); if (candidates.length === 0) return null; // Score each candidate const scored = candidates.map(c => { const age = Date.now() - c.firstSeen; const growthRate = c.textLength / (age / 1000 + 1); // chars per second const recency = Date.now() - c.lastUpdate; const isLowOnPage = c.y > window.innerHeight * 0.3; const isLarge = c.textLength > 200; let score = 0; score += Math.min(c.textLength, 2000); // Favor longer text score += growthRate * 50; // Favor fast-growing (streaming) score += isLowOnPage ? 500 : 0; // Favor bottom-of-page score += isLarge ? 300 : 0; // Favor substantial blocks score -= recency * 0.5; // Penalize stale elements score -= c.mutationCount * 2; // Penalize hyperactive UI elements (spinners) return { ...c, score }; }); scored.sort(("
+                - generic [ref=f1e1199]: a, b
+                - text: ") => b.score - a.score); return scored[0]; }"
+            - heading "3. Completion Detection (Knowing When It's Done)" [level=3] [ref=f1e1200]
+            - generic [ref=f1e1201]:
+              - text: Use a
+              - strong [ref=f1e1202]: multi-signal circuit breaker
+              - text: ". The response is \"complete\" when:"
+            - generic [ref=f1e1203]:
+              - strong [ref=f1e1204]: "Primary Signal: Text Stability"
+              - text: The best candidate's
+              - code [ref=f1e1205]: textLength
+              - text: hasn't changed for
+              - strong [ref=f1e1206]: N seconds
+              - text: . I recommend
+              - strong [ref=f1e1207]: 2.5 seconds
+              - text: as the default — long enough to catch pauses between streaming chunks, short enough to not waste time.
+            - generic [ref=f1e1208]:
+              - strong [ref=f1e1209]: "Secondary Signal: Network Idle"
+              - text: "(via CDP) Enable the Network domain in your debugger session:"
+            - generic [ref=f1e1210]:
+              - banner [ref=f1e1213]:
+                - generic [ref=f1e1214]:
+                  - generic [ref=f1e1215]: JavaScript
+                  - generic [ref=f1e1216]: Copy
+              - code [ref=f1e1223]: "await chrome.debugger.sendCommand({ tabId }, 'Network.enable');"
+            - generic [ref=f1e1224]:
+              - text: Listen for
+              - code [ref=f1e1225]: Network.loadingFinished
+              - text: . If no network events fire for
+              - strong [ref=f1e1226]: 2 seconds
+              - text: ", the backend has likely stopped streaming."
+            - generic [ref=f1e1227]:
+              - strong [ref=f1e1228]: "Tertiary Signal: Max Timeout"
+              - text: Hard cap at
+              - strong [ref=f1e1229]: 90 seconds
+              - text: (or adaptive based on prompt length). Return whatever we have.
+            - generic [ref=f1e1230]:
+              - strong [ref=f1e1231]: "Quaternary Signal: Visual Cues"
+              - text: "(optional enhancement) Check if loading indicators disappeared:"
+            - generic [ref=f1e1232]:
+              - banner [ref=f1e1235]:
+                - generic [ref=f1e1236]:
+                  - generic [ref=f1e1237]: JavaScript
+                  - generic [ref=f1e1238]: Copy
+              - code [ref=f1e1245]: "function hasLoadingIndicator() { const indicators = document.querySelectorAll( '[class*=\"loading\"], [class*=\"spinner\"], [class*=\"thinking\"], [class*=\"animate-pulse\"]' ); return indicators.length > 0; }"
+            - heading "4. Text Extraction (Getting the Goods)" [level=3] [ref=f1e1246]
+            - generic [ref=f1e1247]:
+              - text: Once complete, extract the text. Don't just use
+              - code [ref=f1e1248]: innerText
+              - text: "— you want formatting:"
+            - generic [ref=f1e1249]:
+              - banner [ref=f1e1252]:
+                - generic [ref=f1e1253]:
+                  - generic [ref=f1e1254]: JavaScript
+                  - generic [ref=f1e1255]: Copy
+              - code [ref=f1e1262]:
+                - text: "function extractResponseText(element) { // Option A: Plain text (fast, universal) const plainText = element.innerText; // Option B: Markdown-aware extraction (preserves structure) // Walk the DOM and convert HTML back to markdown const html = element.innerHTML; // Option C: Structured extraction (best for code) // Extract text with code block delimiters preserved const codeBlocks = element.querySelectorAll('pre, code'); // ... transform to markdown code fences ... return { plainText, html, wordCount: plainText.split("
+                - generic [ref=f1e1263]:
+                  - text: /
+                  - generic [ref=f1e1264]: \s+
+                  - text: /
+                - text: ").length, charCount: plainText.length }; }"
+            - separator [ref=f1e1265]
+            - heading "Integration With Your Existing Code" [level=2] [ref=f1e1266]
+            - generic [ref=f1e1267]:
+              - text: Hook this into your flow
+              - strong [ref=f1e1268]: after
+              - code [ref=f1e1269]: verifySend
+              - text: "returns success:"
+            - generic [ref=f1e1270]:
+              - banner [ref=f1e1273]:
+                - generic [ref=f1e1274]:
+                  - generic [ref=f1e1275]: JavaScript
+                  - generic [ref=f1e1276]: Copy
+              - code [ref=f1e1283]:
+                - text: // In background.js, after successful send async function readResponse(
+                - generic [ref=f1e1284]: tabId, url, logger
+                - text: ") { // 1. Install the observer (if not already done in stealth mode pre-navigation) await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', { expression:"
+                - generic [ref=f1e1285]:
+                  - text: "`("
+                  - generic [ref=f1e1286]: "${installResponseTracker.toString()}"
+                  - text: ")();`"
+                - text: ", awaitPromise: false }); // 2. Wait for completion const response = await waitForResponseComplete(tabId, logger); // 3. Store result return { url, tabId, status: response.complete ? 'success' : 'partial', text: response.text, wordCount: response.wordCount, completionReason: response.reason // 'stability', 'network_idle', 'timeout' }; } async function waitForResponseComplete("
+                - generic [ref=f1e1287]: tabId, logger, maxWaitMs = 90000
+                - text: ") { const start = Date.now(); let lastBestText = ''; let stableSince = 0; while (Date.now() - start < maxWaitMs) { const evalResult = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', { expression:"
+                - generic [ref=f1e1288]: "` (function() { const best = extractBestResponse(); if (!best) return null; const text = extractResponseText(best.element); return { text: text.plainText, html: text.html, wordCount: text.wordCount, charCount: text.charCount, score: best.score, y: best.y, lastUpdate: best.lastUpdate }; })() `"
+                - text: ", returnByValue: true }); const current = evalResult?.result?.value; if (!current) { await delay(500); continue; } if (current.text !== lastBestText) { lastBestText = current.text; stableSince = Date.now(); logger.log(tabId,"
+                - generic [ref=f1e1289]:
+                  - text: "`Response growing:"
+                  - generic [ref=f1e1290]: "${current.wordCount}"
+                  - text: "words...`"
+                - text: "); } else if (Date.now() - stableSince > 2500 && current.wordCount > 10) { logger.log(tabId,"
+                - generic [ref=f1e1291]:
+                  - text: "`Response stable at"
+                  - generic [ref=f1e1292]: "${current.wordCount}"
+                  - text: "words`"
+                - text: "); return { ...current, complete: true, reason: 'text_stability' }; } await delay(400); } return { text: lastBestText, complete: false, reason: 'timeout' }; }"
+            - separator [ref=f1e1293]
+            - heading "Critical Pitfalls & Mitigations" [level=2] [ref=f1e1294]
+            - generic [ref=f1e1295]:
+              - banner [ref=f1e1298]:
+                - generic [ref=f1e1299]:
+                  - generic [ref=f1e1300]: Table
+                  - generic [ref=f1e1301]: Copy
+              - table [ref=f1e1310]:
+                - rowgroup [ref=f1e1311]:
+                  - row [ref=f1e1312]:
+                    - columnheader "Pitfall" [ref=f1e1313]
+                    - columnheader "Why It Happens" [ref=f1e1314]
+                    - columnheader "Mitigation" [ref=f1e1315]
+                - rowgroup [ref=f1e1316]:
+                  - row [ref=f1e1317]:
+                    - cell [ref=f1e1318]:
+                      - strong [ref=f1e1319]: Shadow DOM
+                    - cell "Some sites (older Gemini, certain custom elements) render messages inside shadow roots" [ref=f1e1320]
+                    - cell [ref=f1e1321]:
+                      - text: Your observer is on
+                      - code [ref=f1e1322]: document.body
+                      - text: with
+                      - code [ref=f1e1323]: "subtree: true"
+                      - text: ", but shadow boundaries block this. Inject a recursive shadow walker:"
+                      - code [ref=f1e1324]: el.shadowRoot?.querySelectorAll('*')
+                  - row [ref=f1e1325]:
+                    - cell [ref=f1e1326]:
+                      - strong [ref=f1e1327]: Iframes
+                    - cell "Rare, but some embeds use iframes for chat" [ref=f1e1328]
+                    - cell [ref=f1e1329]:
+                      - text: Check
+                      - code [ref=f1e1330]: document.querySelectorAll('iframe')
+                      - text: and inject observers into accessible frames
+                  - row [ref=f1e1331]:
+                    - cell [ref=f1e1332]:
+                      - strong [ref=f1e1333]: False positives from UI updates
+                    - cell "Toasts, notification badges, sidebar updates trigger mutations" [ref=f1e1334]
+                    - cell [ref=f1e1335]:
+                      - text: The
+                      - code [ref=f1e1336]: isExcluded()
+                      - text: function filters by position (exclude top nav), tag type, and the input box mark. Also penalize hyperactive elements in scoring.
+                  - row [ref=f1e1337]:
+                    - cell [ref=f1e1338]:
+                      - strong [ref=f1e1339]: Multi-message responses
+                    - cell "Claude sometimes sends multiple separate bubbles for one answer" [ref=f1e1340]
+                    - cell [ref=f1e1341]:
+                      - text: Track the
+                      - emphasis [ref=f1e1342]: container
+                      - text: that holds messages, not individual bubbles. Look for the parent that contains the last few messages.
+                  - row [ref=f1e1343]:
+                    - cell [ref=f1e1344]:
+                      - strong [ref=f1e1345]: "\"Thinking\" / reasoning blocks"
+                    - cell "Some sites show a thinking process then replace it with the final answer" [ref=f1e1346]
+                    - cell [ref=f1e1347]:
+                      - text: Set your stability timer to
+                      - strong [ref=f1e1348]: 3.5s
+                      - text: if you detect reasoning indicators, or capture both reasoning and final text.
+                  - row [ref=f1e1349]:
+                    - cell [ref=f1e1350]:
+                      - strong [ref=f1e1351]: Bot detection during reading
+                    - cell "Sites may check if you're scrolling or if the response is in viewport" [ref=f1e1352]
+                    - cell [ref=f1e1353]:
+                      - text: In stealth mode, periodically send
+                      - code [ref=f1e1354]: Runtime.evaluate
+                      - text: to call
+                      - code [ref=f1e1355]: "element.scrollIntoView({behavior: 'instant', block: 'end'})"
+                      - text: on the candidate element.
+                  - row [ref=f1e1356]:
+                    - cell [ref=f1e1357]:
+                      - strong [ref=f1e1358]: Memory/CPU leak
+                    - cell "Forgetting to disconnect MutationObserver" [ref=f1e1359]
+                    - cell [ref=f1e1360]:
+                      - text: Always store the observer reference (
+                      - code [ref=f1e1361]: window.__autopromptObserver
+                      - text: ) and disconnect it after extraction or on timeout.
+                  - row [ref=f1e1362]:
+                    - cell [ref=f1e1363]:
+                      - strong [ref=f1e1364]: Debugger detachment mid-read
+                    - cell [ref=f1e1365]:
+                      - text: Your code detaches debugger after
+                      - code [ref=f1e1366]: sendToActivatedTab
+                    - cell [ref=f1e1367]:
+                      - strong [ref=f1e1368]: Don't detach immediately after sending.
+                      - text: Keep the debugger attached until Part 2 completes, or re-attach for the read phase.
+            - separator [ref=f1e1369]
+            - heading "The \"Best Idea\" Summary" [level=2] [ref=f1e1370]
+            - strong [ref=f1e1372]: Don't write selectors. Write a profiler.
+            - generic [ref=f1e1373]:
+              - text: Your extension should profile the page's DOM
+              - emphasis [ref=f1e1374]: before
+              - text: and
+              - emphasis [ref=f1e1375]: after
+              - text: the prompt. The element that explodes in text length at the bottom of the page after the prompt is sent — that's your answer. Use a stability timer to know when the streaming stops. Use network idle as a secondary confirmation.
+            - generic [ref=f1e1376]: "This approach:"
+            - list [ref=f1e1377]:
+              - listitem [ref=f1e1378]:
+                - generic [ref=f1e1379]: ✅ Works on ChatGPT, Claude, Gemini, DeepSeek, Copilot, Perplexity, and unknown future sites
+              - listitem [ref=f1e1380]:
+                - generic [ref=f1e1381]: ✅ Requires zero maintenance when sites change class names
+              - listitem [ref=f1e1413]:
+                - generic [ref=f1e1414]: ✅ Handles streaming responses naturally
+              - listitem [ref=f1e1415]:
+                - generic [ref=f1e1416]: ✅ Fails gracefully (returns partial text on timeout instead of nothing)
+              - listitem [ref=f1e1417]:
+                - generic [ref=f1e1418]: ✅ Leverages your existing CDP infrastructure
+            - generic [ref=f1e1419]:
+              - text: The code sketch above is your starting point. Build the
+              - code [ref=f1e1420]: installResponseTracker
+              - text: ","
+              - code [ref=f1e1421]: extractBestResponse
+              - text: ", and"
+              - code [ref=f1e1422]: waitForResponseComplete
+              - text: functions, integrate them after your send verification, and you'll have Part 2.
+            - generic [ref=f1e1423]: Want me to write the full implementation file for this extractor module?
+        - generic [ref=f1e1462]:
+          - generic [ref=f1e1463]: "ROUND 2: SYNTHESIS CHALLENGE Last round, I sent my full codebase to 6 different AI chat sites (Qwen, Z.ai/GLM-5.2, Gemini, Kimi, DeepSeek, Perplexity) and asked each to design Part 2 of my Chrome extension — a universal AI response reader. Five of you gave architectural recommendations. Now I need you to react to what the OTHERS proposed and converge on the best unified design. Here's what each AI recommended: ## AI 1: Qwen — \"Two-Layer System\" (CDP Network + DOM Heuristics) - Layer 1 (primary completion): CDP Network events — SSE (Content-Type: text/event-stream) or chunked fetch (Transfer-Encoding: chunked). Stream closing IS the completion signal. - Layer 2 (extraction): DOM heuristics — find scrollable container with message-like children, extract last child. Fallbacks: Accessibility Tree via CDP (role=\"article\"/\"group\" > 50 chars), or MutationObserver accumulator. - Stability fallback: 4s of no chunks = done. - Pitfalls: Thinking pause (track firstTokenReceived), WebSocket (listen for webSocketFrameReceived), DOM not settled (poll 200ms until stable 600ms). ## AI 2: Z.ai (GLM-5.2) — \"Text Stability & Delta Diffing\" - Completion: Look for \"Stop generating\" button (aria-label matching /stop|halt|interrupt/i). When it appears → typing. When disappears → done. - Fallback: Poll document.body.innerText every 600ms. If length unchanged for 3 checks (1.8s) and text grew, done. - Extraction: Delta diff — finalText.substring(lastIndexOf(promptText) + promptText.length). Fallback: finalText.substring(preSendText.length). - Implementation: Self-contained polling loop inside the tab via chrome.scripting.executeScript (not CDP). ## AI 3: Gemini — \"Heuristic DOM Settling + Input Lock Signal\" - Phase 1: MutationObserver on document.body, find node with fastest textContent.length growth per 500ms window (activeResponseNode). - Phase 2: Debounce timer 2500ms on mutations to activeResponseNode. - Phase 3 (confidence booster): Poll the data-autoprompt-input element. If settled AND input re-enabled → 99% confidence done. - Extraction: Traverse up to block-level container, extract innerHTML, convert to markdown. - Pitfalls: Thinking pause (2500ms timer), markdown re-renders (node swaps), streaming chunk size. ## AI 4: Kimi — \"Conversation Archaeology Engine\" (Full Profiler) - Pre-inject MutationObserver via CDP Runtime.evaluate before sending. - Track candidate elements with scoring: text length (up to 2000), growth rate (chars/sec × 50), position (bottom 70% of viewport = +500), large block (+300), recency penalty, mutation count penalty. - Network idle as secondary signal: CDP Network domain, no events for 2s. - Tertiary: max timeout 90s. Quaternary: loading indicators disappeared. - Maintains a Map of fingerprints → metadata; polls every 400ms. - Extracts innerText or HTML-to-markdown. ## AI 5: DeepSeek — \"CDP-Injected Answer Watcher\" - After verification, call watchForAnswer via Runtime.evaluate with awaitPromise:true. - Find assistant container: search DOM for element containing exact prompt text (user message), navigate to next sibling. - MutationObserver on assistant container, 2s debounce timer. - Check: no streaming indicators (stop button, spinner, animated cursor). - Extract innerText, strip button/SVG nodes. - Keep debugger attached until answer captured (modify existing flow). ## AI 6: Perplexity — Refused to give specific architecture advice. --- ## YOUR TASK Read the 5 proposals above carefully. Then: 1. **CRITIQUE**: What does each proposal get right and wrong? Which signals are truly universal vs. fragile? 2. **DECIDE**: Which approach would you combine into ONE final architecture? Be specific about what you'd take from each AI. 3. **IMPLEMENT**: Write the actual JavaScript code that I should add to my existing background.js. Show me: - The `watchForAnswer(tabId, prompt)` function - The injected observer script (as a string passed to Runtime.evaluate) - The heuristic scoring algorithm - The completion detection logic - The extraction and cleanup 4. **TRADE-OFFS**: Where do you compromise vs. the ideal? What's the 90% solution vs the 100%? 5. **CODE QUALITY**: This code will run inside the extension. Consider Chrome extension API constraints (service worker lifetime, CDP limits, MV3 rules). Be specific. Write actual code, not pseudocode. I want the final extractor module that I can drop into my background.js after Part 1's verifySend succeeds."
+          - generic [ref=f1e1466]:
+            - generic [ref=f1e1467] [cursor=pointer]: Copy
+            - generic [ref=f1e1472] [cursor=pointer]: Share
+        - generic [ref=f1e1486]:
+          - generic [ref=f1e1487] [cursor=pointer]:
+            - generic [ref=f1e1488]: Thinking
+            - generic [ref=f1e1512]: Detect Stop/Halt Buttons in DOM
+          - generic [ref=f1e1496]:
+            - generic [ref=f1e1497]: "The user wants me to:"
+            - list [ref=f1e1498]:
+              - listitem [ref=f1e1499]:
+                - generic [ref=f1e1500]: Critique 5 AI proposals for Part 2 (universal AI response reader)
+              - listitem [ref=f1e1501]:
+                - generic [ref=f1e1502]: Decide on a unified architecture combining the best ideas
+              - listitem [ref=f1e1503]:
+                - generic [ref=f1e1504]: Implement actual JavaScript code for background.js
+              - listitem [ref=f1e1505]:
+                - generic [ref=f1e1506]: Discuss trade-offs
+              - listitem [ref=f1e1507]:
+                - generic [ref=f1e1508]: Consider Chrome extension MV3 constraints
+            - generic [ref=f1e1514]: "Let me analyze each proposal:"
+            - strong [ref=f1e1516]: "AI 1 (Qwen):"
+            - list [ref=f1e1517]:
+              - listitem [ref=f1e1518]:
+                - generic [ref=f1e1519]: "Right: CDP Network events are strong signals, SSE/chunked transfer detection is reliable for streaming APIs"
+              - listitem [ref=f1e1520]:
+                - generic [ref=f1e1521]: "Wrong: Not all sites use SSE (some use WebSockets, some use regular fetch with JSON streaming). Network events require Network domain enabled which adds overhead. Accessibility Tree is slow and not always available."
+              - listitem [ref=f1e1522]:
+                - generic [ref=f1e1523]: "Universal vs fragile: Network signals are semi-universal but implementation varies wildly. DOM heuristics are more universal."
+            - strong [ref=f1e1525]: "AI 2 (Z.ai/GLM-5.2):"
+            - list [ref=f1e1526]:
+              - listitem [ref=f1e1527]:
+                - generic [ref=f1e1528]: "Right: \"Stop generating\" button detection is actually very reliable when present. Delta diffing is clever."
+              - listitem [ref=f1e1529]:
+                - generic [ref=f1e1530]:
+                  - text: "Wrong: Not all sites have a visible stop button (some hide it, some don't have one)."
+                  - code [ref=f1e1531]: document.body.innerText
+                  - text: polling is too coarse and misses structure.
+                  - code [ref=f1e1532]: chrome.scripting.executeScript
+                  - text: instead of CDP loses stealth mode compatibility.
+              - listitem [ref=f1e1533]:
+                - generic [ref=f1e1534]: "Universal vs fragile: Stop button is fragile (sites change labels, hide it, or use icons without text). Body text diffing is too blunt."
+            - strong [ref=f1e1536]: "AI 3 (Gemini):"
+            - list [ref=f1e1537]:
+              - listitem [ref=f1e1538]:
+                - generic [ref=f1e1539]: "Right: MutationObserver on body is the right foundation. Fastest growth rate is a good signal. Input re-enabled check is smart."
+              - listitem [ref=f1e1540]:
+                - generic [ref=f1e1541]: "Wrong: 2500ms debounce might be too short for some thinking pauses. Traversing to block-level container might miss multi-bubble responses. Only tracking one activeResponseNode misses cases where the response is split."
+              - listitem [ref=f1e1542]:
+                - generic [ref=f1e1543]: "Universal vs fragile: Input lock signal is somewhat universal but not all sites disable inputs during generation."
+            - strong [ref=f1e1545]: "AI 4 (Kimi - my previous response):"
+            - list [ref=f1e1546]:
+              - listitem [ref=f1e1547]:
+                - generic [ref=f1e1548]: "Right: Pre-injection, fingerprint Map, multi-factor scoring, network idle secondary, max timeout, loading indicators."
+              - listitem [ref=f1e1549]:
+                - generic [ref=f1e1550]: "Wrong: The scoring might be over-engineered. 400ms polling via CDP could be heavy. The \"bottom 70%\" assumption might fail on some layouts."
+              - listitem [ref=f1e1551]:
+                - generic [ref=f1e1552]: "Universal vs fragile: The profiler approach is the most universal."
+            - strong [ref=f1e1554]: "AI 5 (DeepSeek):"
+            - list [ref=f1e1555]:
+              - listitem [ref=f1e1556]:
+                - generic [ref=f1e1557]: "Right: Keeping debugger attached is crucial. Finding user message then next sibling is actually very reliable for chat interfaces. 2s debounce is reasonable."
+              - listitem [ref=f1e1558]:
+                - generic [ref=f1e1559]: "Wrong: Searching for exact prompt text fails if the site truncates, reformats, or doesn't display the full prompt. Next sibling assumption breaks on non-linear layouts or threaded conversations."
+              - listitem [ref=f1e1560]:
+                - generic [ref=f1e1561]: "Universal vs fragile: Exact text matching is fragile."
+            - strong [ref=f1e1563]: "My unified architecture should combine:"
+            - list [ref=f1e1564]:
+              - listitem [ref=f1e1565]:
+                - generic [ref=f1e1566]: "From Kimi: Pre-injected MutationObserver, candidate fingerprint Map, multi-factor scoring"
+              - listitem [ref=f1e1567]:
+                - generic [ref=f1e1568]: "From Qwen: Network idle as a strong secondary signal (but not primary)"
+              - listitem [ref=f1e1569]:
+                - generic [ref=f1e1570]: "From Gemini: Input state checking as a tertiary signal"
+              - listitem [ref=f1e1571]:
+                - generic [ref=f1e1572]: "From DeepSeek: Keeping debugger attached, container-level observation"
+              - listitem [ref=f1e1573]:
+                - generic [ref=f1e1574]: "From Z.ai: Stop button detection as a quaternary signal (not primary)"
+            - strong [ref=f1e1576]: "Key decisions:"
+            - list [ref=f1e1577]:
+              - listitem [ref=f1e1578]:
+                - generic [ref=f1e1579]:
+                  - strong [ref=f1e1580]: Primary completion
+                  - text: ": Text stability on the best-scored candidate (2.5s-3s unchanged)"
+              - listitem [ref=f1e1581]:
+                - generic [ref=f1e1582]:
+                  - strong [ref=f1e1583]: Secondary
+                  - text: ": Network idle (2s no events via CDP Network.enable)"
+              - listitem [ref=f1e1584]:
+                - generic [ref=f1e1585]:
+                  - strong [ref=f1e1586]: Tertiary
+                  - text: ": Input re-enabled / stop button disappeared"
+              - listitem [ref=f1e1587]:
+                - generic [ref=f1e1588]:
+                  - strong [ref=f1e1589]: Extraction
+                  - text: ": Multi-strategy - try sibling-of-prompt first (DeepSeek idea), fall back to profiler winner (Kimi idea)"
+              - listitem [ref=f1e1590]:
+                - generic [ref=f1e1591]:
+                  - strong [ref=f1e1592]: Implementation
+                  - text: ": CDP-based to maintain stealth mode compatibility, but also works in auto-cycle mode"
+            - strong [ref=f1e1594]: "MV3 Constraints to consider:"
+            - list [ref=f1e1595]:
+              - listitem [ref=f1e1596]:
+                - generic [ref=f1e1597]: Service worker can be terminated, but we're using long-running async functions which keeps it alive
+              - listitem [ref=f1e1598]:
+                - generic [ref=f1e1599]: CDP debugger sessions must be managed carefully - detach when done
+              - listitem [ref=f1e1600]:
+                - generic [ref=f1e1601]:
+                  - code [ref=f1e1602]: chrome.scripting.executeScript
+                  - text: is an alternative but CDP is better for stealth
+              - listitem [ref=f1e1603]:
+                - generic [ref=f1e1604]: Storage for results is already in place
+              - listitem [ref=f1e1605]:
+                - generic [ref=f1e1606]: Must not block the main thread
+            - strong [ref=f1e1608]: "Architecture details:"
+            - generic [ref=f1e1609]:
+              - text: I'll create a
+              - code [ref=f1e1610]: watchForAnswer(tabId, prompt, logger)
+              - text: "function that:"
+            - list [ref=f1e1611]:
+              - listitem [ref=f1e1612]:
+                - generic [ref=f1e1613]: Keeps debugger attached (or re-attaches if needed)
+              - listitem [ref=f1e1614]:
+                - generic [ref=f1e1615]: Injects the observer script before anything else
+              - listitem [ref=f1e1616]:
+                - generic [ref=f1e1617]: Polls every 500ms for candidates
+              - listitem [ref=f1e1618]:
+                - generic [ref=f1e1619]: Uses a composite completion detector
+              - listitem [ref=f1e1620]:
+                - generic [ref=f1e1621]: Extracts text and stores it
+              - listitem [ref=f1e1622]:
+                - generic [ref=f1e1623]: Cleans up and detaches debugger
+            - generic [ref=f1e1624]:
+              - text: For the injected script, I'll make it a self-contained function that installs the observer and exposes a global
+              - code [ref=f1e1625]: __autopromptExtractor
+              - text: "object with methods:"
+            - list [ref=f1e1626]:
+              - listitem [ref=f1e1627]:
+                - generic [ref=f1e1628]:
+                  - code [ref=f1e1629]: getState()
+                  - text: "- returns current candidates and completion signals"
+              - listitem [ref=f1e1630]:
+                - generic [ref=f1e1631]:
+                  - code [ref=f1e1632]: getBestResponse()
+                  - text: "- returns the best candidate"
+              - listitem [ref=f1e1633]:
+                - generic [ref=f1e1634]:
+                  - code [ref=f1e1635]: extractText(element)
+                  - text: "- extracts clean text"
+              - listitem [ref=f1e1636]:
+                - generic [ref=f1e1637]:
+                  - code [ref=f1e1638]: disconnect()
+                  - text: "- cleans up"
+            - generic [ref=f1e1639]: "For scoring, I'll use:"
+            - list [ref=f1e1640]:
+              - listitem [ref=f1e1641]:
+                - generic [ref=f1e1642]: Text length (capped)
+              - listitem [ref=f1e1643]:
+                - generic [ref=f1e1644]: Growth rate
+              - listitem [ref=f1e1645]:
+                - generic [ref=f1e1646]: Vertical position (lower = better)
+              - listitem [ref=f1e1647]:
+                - generic [ref=f1e1648]: Distance from input box (if we can find it)
+              - listitem [ref=f1e1649]:
+                - generic [ref=f1e1650]: Recency
+              - listitem [ref=f1e1651]:
+                - generic [ref=f1e1652]: Mutation density (not raw count)
+            - generic [ref=f1e1653]: "For completion:"
+            - list [ref=f1e1654]:
+              - listitem [ref=f1e1655]:
+                - generic [ref=f1e1656]:
+                  - code [ref=f1e1657]: STABILITY_MS = 3000
+                  - text: (3 seconds of no text change)
+              - listitem [ref=f1e1658]:
+                - generic [ref=f1e1659]:
+                  - code [ref=f1e1660]: NETWORK_IDLE_MS = 2500
+                  - text: (no network events)
+              - listitem [ref=f1e1661]:
+                - generic [ref=f1e1662]:
+                  - code [ref=f1e1663]: MAX_WAIT_MS = 120000
+                  - text: (2 minutes max)
+              - listitem [ref=f1e1664]:
+                - generic [ref=f1e1665]: Check if input is re-enabled
+              - listitem [ref=f1e1666]:
+                - generic [ref=f1e1667]: Check if stop button is gone
+            - generic [ref=f1e1668]: "For extraction:"
+            - list [ref=f1e1669]:
+              - listitem [ref=f1e1670]:
+                - generic [ref=f1e1671]: Try to find the prompt text in the DOM, then look at subsequent siblings (DeepSeek's good idea, but fuzzy match)
+              - listitem [ref=f1e1672]:
+                - generic [ref=f1e1673]: Fall back to the highest-scored candidate
+              - listitem [ref=f1e1674]:
+                - generic [ref=f1e1675]: Clean the text (remove buttons, SVGs, etc.)
+            - generic [ref=f1e1676]: Let me write the actual code now.
+            - generic [ref=f1e1677]: "I need to be careful about:"
+            - list [ref=f1e1678]:
+              - listitem [ref=f1e1679]:
+                - generic [ref=f1e1680]: The code must fit into the existing background.js style
+              - listitem [ref=f1e1681]:
+                - generic [ref=f1e1682]: Must handle both stealth and auto-cycle modes
+              - listitem [ref=f1e1683]:
+                - generic [ref=f1e1684]: Must work with the existing result structure
+              - listitem [ref=f1e1685]:
+                - generic [ref=f1e1686]: Need to add Network domain enablement
+              - listitem [ref=f1e1687]:
+                - generic [ref=f1e1688]: Need to handle CDP event listeners for network events
+            - generic [ref=f1e1689]:
+              - text: Actually, for the network idle signal, I need to listen to CDP events. In Chrome debugger API, I can use
+              - code [ref=f1e1690]: chrome.debugger.onEvent
+              - text: to listen for Network events. But I need to be careful because multiple tabs might be processing simultaneously.
+            - generic [ref=f1e1691]: "Let me structure the code:"
+            - generic [ref=f1e1692]:
+              - banner [ref=f1e1695]:
+                - generic [ref=f1e1696]:
+                  - generic [ref=f1e1697]: JavaScript
+                  - generic [ref=f1e1698]: Copy
+              - code [ref=f1e1705]:
+                - text: "// New constants const RESPONSE_CONFIG = { STABILITY_MS: 3000, NETWORK_IDLE_MS: 2500, POLL_INTERVAL_MS: 500, MAX_WAIT_MS: 120000, MIN_RESPONSE_LENGTH: 20 }; // Main entry point async function watchForAnswer("
+                - generic [ref=f1e1706]: tabId, prompt, logger
+                - text: ") { // Ensure debugger is attached // Enable Network domain // Inject observer // Poll loop // Extract and return } // Injected script string const EXTRACTOR_SCRIPT ="
+                - generic [ref=f1e1707]: "`(function() { // ... observer and logic })()`"
+                - text: ; // Heuristic scoring function scoreCandidate(
+                - generic [ref=f1e1708]: candidate, viewportH, inputY
+                - text: ") { ... } // Completion check function isComplete("
+                - generic [ref=f1e1709]: state, lastText, stableSince, lastNetworkEvent
+                - text: ") { ... }"
+            - generic [ref=f1e1710]: "Wait, I need to think about the Network domain more carefully. In Chrome extension debugger API:"
+            - list [ref=f1e1711]:
+              - listitem [ref=f1e1712]:
+                - generic [ref=f1e1713]:
+                  - code [ref=f1e1714]: "chrome.debugger.sendCommand({tabId}, 'Network.enable')"
+                  - text: enables it
+              - listitem [ref=f1e1715]:
+                - generic [ref=f1e1716]:
+                  - code [ref=f1e1717]: chrome.debugger.onEvent
+                  - text: receives events like
+                  - code [ref=f1e1718]: Network.loadingFinished
+                  - text: ","
+                  - code [ref=f1e1719]: Network.responseReceived
+                  - text: ", etc."
+              - listitem [ref=f1e1720]:
+                - generic [ref=f1e1721]:
+                  - text: But
+                  - code [ref=f1e1722]: onEvent
+                  - text: is global - I need to filter by tabId
+            - generic [ref=f1e1723]:
+              - text: "However, there's a complication: the existing code detaches the debugger after"
+              - code [ref=f1e1724]: sendToActivatedTab
+              - text: in auto-cycle mode. For Part 2, I need to keep it attached. I should modify the flow or re-attach.
+            - generic [ref=f1e1725]: "Actually, looking at the existing code:"
+            - list [ref=f1e1726]:
+              - listitem [ref=f1e1727]:
+                - generic [ref=f1e1728]:
+                  - text: "In auto-cycle mode:"
+                  - code [ref=f1e1729]: sendToActivatedTab
+                  - text: detaches debugger in
+                  - code [ref=f1e1730]: finally
+                  - text: block
+              - listitem [ref=f1e1731]:
+                - generic [ref=f1e1732]:
+                  - text: "In stealth mode:"
+                  - code [ref=f1e1733]: stealthSendToTab
+                  - text: doesn't detach - it's detached in
+                  - code [ref=f1e1734]: runAutomationStealth
+                  - text: after all processing
+            - generic [ref=f1e1735]: "So for Part 2, I need to:"
+            - list [ref=f1e1736]:
+              - listitem [ref=f1e1737]:
+                - generic [ref=f1e1738]: "In auto-cycle mode: NOT detach after send, or re-attach for reading"
+              - listitem [ref=f1e1739]:
+                - generic [ref=f1e1740]:
+                  - text: "In stealth mode: the debugger is still attached during"
+                  - code [ref=f1e1741]: runAutomationStealth
+            - generic [ref=f1e1742]:
+              - text: The cleanest approach is to integrate
+              - code [ref=f1e1743]: watchForAnswer
+              - text: into the existing flow before detachment.
+            - generic [ref=f1e1744]: "Let me look at the existing flow again:"
+            - list [ref=f1e1745]:
+              - listitem [ref=f1e1746]:
+                - generic [ref=f1e1747]:
+                  - code [ref=f1e1748]: sendToActivatedTab
+                  - text: returns a result and detaches debugger
+              - listitem [ref=f1e1749]:
+                - generic [ref=f1e1750]:
+                  - code [ref=f1e1751]: stealthSendToTab
+                  - text: returns a result but doesn't detach
+            - generic [ref=f1e1752]:
+              - text: So I should modify
+              - code [ref=f1e1753]: sendToActivatedTab
+              - text: to optionally keep debugger attached if we need to read the response. Or better, create a wrapper that handles the full lifecycle.
+            - generic [ref=f1e1754]:
+              - text: Actually, the user asked for code to add to background.js after
+              - code [ref=f1e1755]: verifySend
+              - text: "succeeds. So I should provide:"
+            - list [ref=f1e1756]:
+              - listitem [ref=f1e1757]:
+                - generic [ref=f1e1758]:
+                  - text: A
+                  - code [ref=f1e1759]: watchForAnswer
+                  - text: function that manages its own debugger lifecycle (attaches if needed, detaches when done)
+              - listitem [ref=f1e1760]:
+                - generic [ref=f1e1761]: Integration points showing where to call it
+            - generic [ref=f1e1762]: But wait - if auto-cycle mode detaches the debugger, and then we re-attach for reading, we might miss the initial mutations. The observer should ideally be injected BEFORE the prompt is sent.
+            - generic [ref=f1e1763]: "So the ideal flow is:"
+            - list [ref=f1e1764]:
+              - listitem [ref=f1e1765]:
+                - generic [ref=f1e1766]: Before sending (while debugger is attached), inject the observer script
+              - listitem [ref=f1e1767]:
+                - generic [ref=f1e1768]: Send the prompt
+              - listitem [ref=f1e1769]:
+                - generic [ref=f1e1770]: Keep debugger attached
+              - listitem [ref=f1e1771]:
+                - generic [ref=f1e1772]: Run watchForAnswer (which uses the already-injected observer)
+              - listitem [ref=f1e1773]:
+                - generic [ref=f1e1774]: Detach when done
+            - generic [ref=f1e1775]: This means I need to modify the existing send functions slightly, or inject the observer as part of the send flow.
+            - generic [ref=f1e1776]:
+              - text: Let me provide the code with clear integration instructions. I'll write
+              - code [ref=f1e1777]: watchForAnswer
+              - text: to handle re-attachment gracefully, and note that for best results, the observer should be pre-injected.
+            - generic [ref=f1e1778]:
+              - text: "Actually, looking more carefully at the stealth mode:"
+              - code [ref=f1e1779]: stealthSetupTab
+              - text: already injects a script via
+              - code [ref=f1e1780]: Page.addScriptToEvaluateOnNewDocument
+              - text: . I could add the observer setup there. But for auto-cycle mode, we'd need to inject before sending.
+            - generic [ref=f1e1781]: Let me write the code to be robust even if injected after the fact. The observer will catch mutations from that point forward, which for a streaming response that takes several seconds, is fine.
+            - generic [ref=f1e1782]: "Let me draft the injected script:"
+            - generic [ref=f1e1783]:
+              - banner [ref=f1e1786]:
+                - generic [ref=f1e1787]:
+                  - generic [ref=f1e1788]: JavaScript
+                  - generic [ref=f1e1789]: Copy
+              - code [ref=f1e1796]:
+                - text: const EXTRACTOR_SCRIPT =
+                - generic [ref=f1e1797]: "` (function() { if (window.__autopromptExtractor) return; const state = { startTime: Date.now(), candidates: new Map(), lastMutationTime: 0, inputElement: null, stopButton: null, isInputDisabled: false, completed: false, finalText: null }; // Find input element (the one we marked) state.inputElement = document.querySelector('[data-autoprompt-input=\"true\"]'); // Utility: get visible text function getText(el) { if (!el) return ''; const clone = el.cloneNode(true); clone.querySelectorAll('button, input, textarea, nav, header, footer, script, style, svg, [role=\"button\"]').forEach(e => e.remove()); return clone.innerText || clone.textContent || ''; } // Utility: check if element is likely a response container function isExcluded(el) { if (!el || el.nodeType !== 1) return true; const tag = el.tagName.toLowerCase(); if (['input','textarea','button','nav','header','footer','aside','script','style','svg'].includes(tag)) return true; if (el.isContentEditable) return true; if (el.closest('input, textarea, [contenteditable=\"true\"], nav, header, footer, [data-autoprompt-input=\"true\"]')) return true; const style = window.getComputedStyle(el); if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return true; return false; } // Find stop button function findStopButton() { const selectors = [ 'button[aria-label*=\"stop\" i]', 'button[aria-label*=\"halt\" i]', 'button[aria-label*=\"cancel\" i]', 'button[class*=\"stop\" i]', 'button[class*=\"halt\" i]', '[class*=\"stop-generating\" i]', '[class*=\"stop-button\" i]', 'button svg[class*=\"stop\" i]', 'button:has(svg[class*=\"stop\" i])' ]; for (const sel of selectors) { const btn = document.querySelector(sel); if (btn) return btn; } // Text content heuristic const buttons = document.querySelectorAll('button'); for (const btn of buttons) { const text = (btn.innerText || btn.textContent || '').toLowerCase(); if (text.includes('stop') && text.length < 20) return btn; } return null; } // Check input state function checkInputState() { const input = state.inputElement || document.querySelector('[data-autoprompt-input=\"true\"]'); if (!input) return { exists: false, disabled: false, empty: true }; const disabled = input.disabled || input.getAttribute('aria-disabled') === 'true' || input.getAttribute('readonly'); const empty = (input.value || input.innerText || '').trim() === ''; return { exists: true, disabled: !!disabled, empty }; } // Get fingerprint for an element function getFingerprint(el) { const rect = el.getBoundingClientRect(); return \\`\\${el.tagName}|\\${Math.round(rect.x)}|\\${Math.round(rect.y)}|\\${el.className?.substring(0, 30) || ''}\\`; } // Observer const observer = new MutationObserver((mutations) => { state.lastMutationTime = Date.now(); state.stopButton = findStopButton(); const inputState = checkInputState(); state.isInputDisabled = inputState.disabled; for (const mutation of mutations) { const nodes = mutation.type === 'childList' ? [...mutation.addedNodes] : [mutation.target]; for (const node of nodes) { const el = node.nodeType === 3 ? node.parentElement : node; if (!el || isExcluded(el)) continue; const text = getText(el); if (text.length < 10) continue; const rect = el.getBoundingClientRect(); if (rect.width < 100 || rect.height < 20) continue; const fp = getFingerprint(el); const existing = state.candidates.get(fp); if (existing) { existing.textLength = text.length; existing.lastUpdate = Date.now(); existing.mutationCount++; if (text.length > existing.maxTextLength) existing.maxTextLength = text.length; } else { state.candidates.set(fp, { tag: el.tagName.toLowerCase(), textLength: text.length, maxTextLength: text.length, firstSeen: Date.now(), lastUpdate: Date.now(), mutationCount: 1, y: rect.y, x: rect.x, width: rect.width, height: rect.height, element: el }); } } } }); observer.observe(document.body, { childList: true, subtree: true, characterData: true }); // Scoring function function scoreCandidate(c, viewportH, inputY) { let score = 0; const age = Date.now() - c.firstSeen; const growthRate = c.textLength / (age / 1000 + 1); const isLow = c.y > viewportH * 0.25; const isWide = c.width > 300; const isTall = c.height > 50; score += Math.min(c.textLength, 3000); score += growthRate * 30; score += isLow ? 400 : 0; score += isWide ? 200 : 0; score += isTall ? 100 : 0; score += c.mutationCount * 5; score -= (Date.now() - c.lastUpdate) * 0.3; // Prefer elements below the input box if (inputY && c.y > inputY) score += 300; // Penalize top nav and sidebars if (c.y < 100) score -= 500; if (c.x < 50 && c.y < 200) score -= 300; return score; } // Find prompt element and next siblings (DeepSeek strategy) function findResponseByPrompt(promptText) { if (!promptText || promptText.length < 5) return null; const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); let node; while (node = walker.nextNode()) { if (node.textContent.includes(promptText.substring(0, 50))) { let el = node.parentElement; while (el && el !== document.body) { const parent = el.parentElement; if (parent && parent.children.length > 1) { const idx = Array.from(parent.children).indexOf(el); if (idx >= 0 && idx < parent.children.length - 1) { // Check next siblings for (let i = idx + 1; i < parent.children.length; i++) { const sibling = parent.children[i]; const text = getText(sibling); if (text.length > 50) return sibling; } } } el = parent; } break; } } return null; } // Public API window.__autopromptExtractor = { getState: function() { const viewportH = window.innerHeight; const inputEl = document.querySelector('[data-autoprompt-input=\"true\"]'); const inputY = inputEl ? inputEl.getBoundingClientRect().y : null; const scored = []; state.candidates.forEach((c, fp) => { scored.push({ fingerprint: fp, tag: c.tag, textLength: c.textLength, maxTextLength: c.maxTextLength, y: c.y, x: c.x, width: c.width, height: c.height, firstSeen: c.firstSeen, lastUpdate: c.lastUpdate, mutationCount: c.mutationCount, score: scoreCandidate(c, viewportH, inputY) }); }); scored.sort((a, b) => b.score - a.score); return { candidates: scored.slice(0, 5), bestCandidate: scored[0] || null, stopButtonVisible: !!findStopButton(), inputState: checkInputState(), lastMutationTime: state.lastMutationTime, elapsed: Date.now() - state.startTime }; }, getBestResponse: function() { const s = this.getState(); if (!s.bestCandidate) return null; // Try to find by prompt first const promptEl = document.querySelector('[data-autoprompt-input=\"true\"]'); let responseEl = null; if (promptEl) { // Try sibling strategy const parent = promptEl.parentElement; if (parent && parent.children.length > 1) { const idx = Array.from(parent.children).indexOf(promptEl); if (idx >= 0) { for (let i = idx + 1; i < parent.children.length; i++) { const sibling = parent.children[i]; const text = getText(sibling); if (text.length > 30) { responseEl = sibling; break; } } } } } // Fallback to scored candidate - find element by fingerprint if (!responseEl) { const fp = s.bestCandidate.fingerprint; state.candidates.forEach((c, key) => { if (key === fp) responseEl = c.element; }); } if (!responseEl) return null; const text = getText(responseEl); const html = responseEl.innerHTML; return { text, html, element: responseEl, score: s.bestCandidate.score }; }, disconnect: function() { observer.disconnect(); delete window.__autopromptExtractor; } }; })(); `"
+                - text: ;
+            - generic [ref=f1e1798]:
+              - text: Now the main
+              - code [ref=f1e1799]: watchForAnswer
+              - text: function. I need to handle network events. Since Chrome debugger
+              - code [ref=f1e1800]: onEvent
+              - text: is global, I'll track network events per tabId.
+            - generic [ref=f1e1801]:
+              - banner [ref=f1e1804]:
+                - generic [ref=f1e1805]:
+                  - generic [ref=f1e1806]: JavaScript
+                  - generic [ref=f1e1807]: Copy
+              - code [ref=f1e1814]:
+                - text: "// Track network activity per tab const networkActivity = new Map(); // tabId -> { lastEvent: timestamp } chrome.debugger.onEvent.addListener(("
+                - generic [ref=f1e1815]: source, method, params
+                - text: ") => { if (method.startsWith('Network.')) { networkActivity.set(source.tabId, Date.now()); } });"
+            - generic [ref=f1e1816]: Wait, this needs to be at the top level of background.js. That's fine.
+            - generic [ref=f1e1817]: "Now the watchForAnswer function:"
+            - generic [ref=f1e1818]:
+              - banner [ref=f1e1821]:
+                - generic [ref=f1e1822]:
+                  - generic [ref=f1e1823]: JavaScript
+                  - generic [ref=f1e1824]: Copy
+              - code [ref=f1e1831]:
+                - text: async function watchForAnswer(
+                - generic [ref=f1e1832]: tabId, prompt, logger
+                - text: ") { const result = { url: null, tabId, status: 'unknown', text: null, html: null, wordCount: 0, completionReason: null, error: null }; let debuggerWasAttached = false; let networkEnabled = false; try { // Check if debugger is already attached try { await chrome.debugger.sendCommand({ tabId }, 'Runtime.enable'); debuggerWasAttached = true; } catch (e) { // Not attached, attach it await chrome.debugger.attach({ tabId }, '1.3'); debuggerWasAttached = true; logger.log(tabId, 'Reader: debugger attached for response reading'); } // Enable Network domain for idle detection try { await chrome.debugger.sendCommand({ tabId }, 'Network.enable'); networkEnabled = true; networkActivity.set(tabId, Date.now()); logger.log(tabId, 'Reader: Network domain enabled'); } catch (e) { logger.log(tabId,"
+                - generic [ref=f1e1833]:
+                  - text: "`Reader: Network.enable failed:"
+                  - generic [ref=f1e1834]: "${e.message}"
+                  - text: "`"
+                - text: "); } // Inject the observer await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', { expression: EXTRACTOR_SCRIPT, awaitPromise: false }); logger.log(tabId, 'Reader: extractor script injected'); // Give a moment for any in-flight mutations to register await delay(800); const startTime = Date.now(); let lastBestText = ''; let stableSince = 0; let bestCandidateScore = 0; let completionDetected = false; let completionReason = ''; while (Date.now() - startTime < RESPONSE_CONFIG.MAX_WAIT_MS) { // Poll state const evalResult = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', { expression:"
+                - generic [ref=f1e1835]: "`window.__autopromptExtractor ? window.__autopromptExtractor.getState() : null`"
+                - text: ", returnByValue: true }); const state = evalResult?.result?.value; if (!state) { logger.log(tabId, 'Reader: extractor not found, retrying...'); await delay(500); continue; } const best = state.bestCandidate; const currentText = best ? best.textLength : 0; const now = Date.now(); // Log progress if (best && best.textLength > 0 && best.textLength !== lastBestText.length) { logger.log(tabId,"
+                - generic [ref=f1e1836]:
+                  - text: "`Reader: response growing ("
+                  - generic [ref=f1e1837]: "${best.textLength}"
+                  - text: "chars, score:"
+                  - generic [ref=f1e1838]: "${Math.round(best.score)}"
+                  - text: ")`"
+                - text: "); } // Check completion signals const signals = []; // Signal 1: Text stability if (best && best.textLength > RESPONSE_CONFIG.MIN_RESPONSE_LENGTH) { if (currentText === lastBestText) { if (stableSince === 0) stableSince = now; const stableDuration = now - stableSince; if (stableDuration > RESPONSE_CONFIG.STABILITY_MS) { signals.push({ name: 'stability', ready: true, weight: 3 }); } else { signals.push({ name: 'stability', ready: false, weight: 3, progress: stableDuration / RESPONSE_CONFIG.STABILITY_MS }); } } else { lastBestText = currentText; stableSince = 0; signals.push({ name: 'stability', ready: false, weight: 3 }); } } else { signals.push({ name: 'stability', ready: false, weight: 3 }); } // Signal 2: Network idle const lastNet = networkActivity.get(tabId) || now; const netIdle = now - lastNet; if (netIdle > RESPONSE_CONFIG.NETWORK_IDLE_MS && best && best.textLength > RESPONSE_CONFIG.MIN_RESPONSE_LENGTH) { signals.push({ name: 'network_idle', ready: true, weight: 2 }); } else { signals.push({ name: 'network_idle', ready: false, weight: 2 }); } // Signal 3: Stop button gone + input enabled const uiSettled = !state.stopButtonVisible && !state.inputState.disabled && state.inputState.empty; if (uiSettled && best && best.textLength > RESPONSE_CONFIG.MIN_RESPONSE_LENGTH) { signals.push({ name: 'ui_settled', ready: true, weight: 1.5 }); } else { signals.push({ name: 'ui_settled', ready: false, weight: 1.5 }); } // Calculate confidence score const readyWeight = signals.filter(s => s.ready).reduce(("
+                - generic [ref=f1e1839]: a, s
+                - text: ) => a + s.weight, 0); const totalWeight = signals.reduce((
+                - generic [ref=f1e1840]: a, s
+                - text: ") => a + s.weight, 0); const confidence = readyWeight / totalWeight; // Completion decision: need stability + at least one other signal, OR all three const stabilityReady = signals.find(s => s.name === 'stability')?.ready; const othersReady = signals.filter(s => s.name !== 'stability' && s.ready).length; if (stabilityReady && othersReady >= 1) { completionDetected = true; completionReason = signals.filter(s => s.ready).map(s => s.name).join('+'); logger.log(tabId,"
+                - generic [ref=f1e1841]:
+                  - text: "`Reader: completion detected ("
+                  - generic [ref=f1e1842]: "${completionReason}"
+                  - text: "), confidence:"
+                  - generic [ref=f1e1843]: "${(confidence * 100).toFixed(0)}"
+                  - text: "%`"
+                - text: "); break; } // Early exit: if we have stability + network idle + no mutations recently, we're done if (stabilityReady && signals.find(s => s.name === 'network_idle')?.ready && (now - state.lastMutationTime > 3000)) { completionDetected = true; completionReason = 'stability+network_idle+no_mutations'; logger.log(tabId,"
+                - generic [ref=f1e1844]: "`Reader: completion detected (no mutations), confidence: 100%`"
+                - text: "); break; } await delay(RESPONSE_CONFIG.POLL_INTERVAL_MS); } if (!completionDetected) { completionReason = 'timeout'; logger.log(tabId, 'Reader: max wait reached, extracting partial response'); } // Extract the response const extractResult = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', { expression:"
+                - generic [ref=f1e1845]: "`window.__autopromptExtractor ? window.__autopromptExtractor.getBestResponse() : null`"
+                - text: ", returnByValue: true }); const response = extractResult?.result?.value; if (response && response.text) { result.text = response.text; result.html = response.html; result.wordCount = response.text.split("
+                - generic [ref=f1e1846]:
+                  - text: /
+                  - generic [ref=f1e1847]: \s+
+                  - text: /
+                - text: ").length; result.status = completionDetected ? 'success' : 'partial'; result.completionReason = completionReason; logger.log(tabId,"
+                - generic [ref=f1e1848]:
+                  - text: "`Reader: extracted"
+                  - generic [ref=f1e1849]: "${result.wordCount}"
+                  - text: words (
+                  - generic [ref=f1e1850]: "${response.text.length}"
+                  - text: "chars)`"
+                - text: "); } else { result.status = 'error'; result.reason = 'No response element found'; logger.log(tabId, 'Reader: failed to find response element'); } } catch (e) { logger.log(tabId,"
+                - generic [ref=f1e1851]:
+                  - text: "`Reader error:"
+                  - generic [ref=f1e1852]: "${e.message}"
+                  - text: "`"
+                - text: "); result.status = 'error'; result.reason = e.message; } finally { // Cleanup try { await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', { expression:"
+                - generic [ref=f1e1853]: "`window.__autopromptExtractor && window.__autopromptExtractor.disconnect()`"
+                - text: ", awaitPromise: false }); } catch (e) {} if (networkEnabled) { try { await chrome.debugger.sendCommand({ tabId }, 'Network.disable'); } catch (e) {} } networkActivity.delete(tabId); // Only detach if we attached it if (!debuggerWasAttached) { try { await chrome.debugger.detach({ tabId }); } catch (e) {} } } return result; }"
+            - generic [ref=f1e1854]:
+              - text: Wait, there's a bug in my logic.
+              - code [ref=f1e1855]: debuggerWasAttached
+              - text: starts as
+              - code [ref=f1e1856]: "false"
+              - text: . If attach succeeds, I set it to
+              - code [ref=f1e1857]: "true"
+              - text: . But in the finally block, I only detach if
+              - code [ref=f1e1858]: "!debuggerWasAttached"
+              - text: "- that means if we attached it, we DON'T detach it. That's backwards."
+            - generic [ref=f1e1859]:
+              - text: Actually, looking at the existing code, in auto-cycle mode the debugger is detached after send. In stealth mode it's kept attached. So
+              - code [ref=f1e1860]: watchForAnswer
+              - text: "should:"
+            - list [ref=f1e1861]:
+              - listitem [ref=f1e1862]:
+                - generic [ref=f1e1863]: Check if already attached
+              - listitem [ref=f1e1864]:
+                - generic [ref=f1e1865]: If not, attach it
+              - listitem [ref=f1e1866]:
+                - generic [ref=f1e1867]: "In finally: if we attached it AND we're not in a mode that keeps it attached, detach it"
+            - generic [ref=f1e1868]: "But we don't know the mode here. Better approach: always try to detach in finally, but swallow errors if it was already detached or if another part of the code manages it."
+            - generic [ref=f1e1869]:
+              - text: Actually, the cleanest approach is to NOT manage attachment lifecycle inside
+              - code [ref=f1e1870]: watchForAnswer
+              - text: . Instead, assume the caller manages it. But the user wants drop-in code.
+            - generic [ref=f1e1871]: Let me reconsider. The user said "drop into my background.js after Part 1's verifySend succeeds." So I should show how to integrate it.
+            - generic [ref=f1e1872]:
+              - text: "For the auto-cycle mode: the debugger is currently detached in"
+              - code [ref=f1e1873]: sendToActivatedTab
+              - text: "'s finally block. I need to modify that to NOT detach if we're going to read the response. Or, re-attach in"
+              - code [ref=f1e1874]: watchForAnswer
+              - text: .
+            - generic [ref=f1e1875]:
+              - text: "For stealth mode: the debugger stays attached until the end of"
+              - code [ref=f1e1876]: runAutomationStealth
+              - text: ", so"
+              - code [ref=f1e1877]: watchForAnswer
+              - text: can just use it.
+            - generic [ref=f1e1878]:
+              - text: I'll write
+              - code [ref=f1e1879]: watchForAnswer
+              - text: "to be self-contained: it ensures the debugger is attached, and in finally it tries to detach but swallows errors. The caller can re-attach if needed. Actually, better: provide an"
+              - code [ref=f1e1880]: ensureDebugger
+              - text: helper and let the caller decide.
+            - generic [ref=f1e1881]: "Let me revise to be simpler and more robust:"
+            - generic [ref=f1e1882]:
+              - banner [ref=f1e1885]:
+                - generic [ref=f1e1886]:
+                  - generic [ref=f1e1887]: JavaScript
+                  - generic [ref=f1e1888]: Copy
+              - code [ref=f1e1895]:
+                - text: async function watchForAnswer(
+                - generic [ref=f1e1896]: tabId, prompt, logger
+                - text: ") { let attached = false; try { // Ensure attached try { await chrome.debugger.sendCommand({ tabId }, 'Runtime.enable'); } catch (e) { await chrome.debugger.attach({ tabId }, '1.3'); attached = true; } // ... rest of logic ... } finally { // Cleanup observer try { await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', { expression:"
+                - generic [ref=f1e1897]: "`try { window.__autopromptExtractor.disconnect(); } catch(e) {}`"
+                - text: ", awaitPromise: false }); } catch (e) {} // Disable network try { await chrome.debugger.sendCommand({ tabId }, 'Network.disable'); } catch (e) {} // Detach only if we attached it if (attached) { try { await chrome.debugger.detach({ tabId }); } catch (e) {} } } }"
+            - generic [ref=f1e1898]: This is cleaner.
+            - generic [ref=f1e1899]:
+              - text: Now for the integration. I need to show the user where to call
+              - code [ref=f1e1900]: watchForAnswer
+              - text: ". In the existing code:"
+            - generic [ref=f1e1901]:
+              - text: For auto-cycle mode, in
+              - code [ref=f1e1902]: sendToActivatedTab
+              - text: ", after verification succeeds:"
+            - generic [ref=f1e1903]:
+              - banner [ref=f1e1906]:
+                - generic [ref=f1e1907]:
+                  - generic [ref=f1e1908]: JavaScript
+                  - generic [ref=f1e1909]: Copy
+              - code [ref=f1e1916]: "if (verification.verified) { await cleanupInputElementMark(tabId); result.status = 'success'; result.reason = verification.reason; // ADD: Read the response const answer = await watchForAnswer(tabId, prompt, logger); result.answer = answer; }"
+            - generic [ref=f1e1917]:
+              - text: But the debugger is detached in the finally block of
+              - code [ref=f1e1918]: sendToActivatedTab
+              - text: . So I need to modify that too. I'll provide the integration snippet.
+            - generic [ref=f1e1919]: Actually, I think the best approach is to provide the full module plus clear integration instructions with minimal changes to existing code.
+            - generic [ref=f1e1920]: "Let me also think about the scoring algorithm more carefully. I want to incorporate the best ideas:"
+            - generic [ref=f1e1921]: "From Kimi: text length, growth rate, position, recency From Gemini: fastest growth per time window From DeepSeek: sibling-of-prompt strategy From Qwen: network idle From Z.ai: stop button detection"
+            - generic [ref=f1e1922]: I should also add a "prompt subtraction" feature - remove the user's prompt text from the beginning of the extracted text if it appears there.
+            - generic [ref=f1e1923]: "Let me refine the completion logic. I think the \"circuit breaker\" approach is best:"
+            - list [ref=f1e1924]:
+              - listitem [ref=f1e1925]:
+                - generic [ref=f1e1926]: "PRIMARY: Text stability (3s unchanged) + minimum length"
+              - listitem [ref=f1e1927]:
+                - generic [ref=f1e1928]: "SECONDARY: Network idle (2.5s)"
+              - listitem [ref=f1e1929]:
+                - generic [ref=f1e1930]: "TERTIARY: UI settled (no stop button, input enabled)"
+              - listitem [ref=f1e1931]:
+                - generic [ref=f1e1932]: "QUATERNARY: Max timeout (120s)"
+            - generic [ref=f1e1933]: "Completion requires:"
+            - list [ref=f1e1934]:
+              - listitem [ref=f1e1935]:
+                - generic [ref=f1e1936]: (Stability AND NetworkIdle) OR (Stability AND UISettled) OR (Stability AND NetworkIdle AND UISettled)
+              - listitem [ref=f1e1937]:
+                - generic [ref=f1e1938]: OR just Stability if it's been stable for > 6s (long thinking pause)
+            - generic [ref=f1e1939]: "Actually, for thinking models like o1 or DeepSeek-R1, the response might have long pauses. So I should be more lenient:"
+            - list [ref=f1e1940]:
+              - listitem [ref=f1e1941]:
+                - generic [ref=f1e1942]: If text is stable for 3s AND network has been idle for 2.5s → done
+              - listitem [ref=f1e1943]:
+                - generic [ref=f1e1944]: If text is stable for 5s regardless of network → done (catches thinking pauses)
+              - listitem [ref=f1e1945]:
+                - generic [ref=f1e1946]: If UI is settled (no stop button, input enabled) AND text is stable for 2s → done
+            - generic [ref=f1e1947]: Let me code this properly.
+            - generic [ref=f1e1948]: Also, I need to handle the case where the prompt itself appears in the response text. I'll add a cleanup function.
+            - generic [ref=f1e1949]:
+              - text: "One more thing: the"
+              - code [ref=f1e1950]: chrome.debugger.onEvent
+              - text: listener needs to be registered at the module level. I'll include that.
+            - generic [ref=f1e1951]: Let me now write the complete, polished code.
+            - generic [ref=f1e1952]:
+              - text: Actually, I realize I should also consider that
+              - code [ref=f1e1953]: Runtime.evaluate
+              - text: with
+              - code [ref=f1e1954]: "returnByValue: true"
+              - text: can't return DOM elements. So
+              - code [ref=f1e1955]: getBestResponse()
+              - text: needs to return serializable data only. In my injected script, I should extract the text and HTML strings and return those, not the element itself.
+            - generic [ref=f1e1956]:
+              - text: Revised
+              - code [ref=f1e1957]: getBestResponse
+              - text: ":"
+            - generic [ref=f1e1958]:
+              - banner [ref=f1e1961]:
+                - generic [ref=f1e1962]:
+                  - generic [ref=f1e1963]: JavaScript
+                  - generic [ref=f1e1964]: Copy
+              - code [ref=f1e1971]: "getBestResponse: function() { // ... find element ... if (!responseEl) return null; const text = getText(responseEl); const html = responseEl.innerHTML; return { text, html, score: s.bestCandidate.score }; }"
+            - generic [ref=f1e1972]: This is already serializable.
+            - generic [ref=f1e1973]:
+              - text: Let me also add a
+              - code [ref=f1e1974]: getResponseByPrompt
+              - text: strategy that's more robust. Instead of exact text match, use a fuzzy match or just look for the input element's parent container and get subsequent siblings.
+            - generic [ref=f1e1975]:
+              - text: Actually, the input element (
+              - code [ref=f1e1976]: data-autoprompt-input
+              - text: ) might not be the same element that displays the sent message. The site might clone the text into a message bubble and clear the input. So looking for siblings of the input element might not work.
+            - generic [ref=f1e1977]: "Better strategy: look for elements containing the prompt text (or first 50 chars), then look at subsequent elements in the same parent or conversation thread."
+            - generic [ref=f1e1978]:
+              - banner [ref=f1e1981]:
+                - generic [ref=f1e1982]:
+                  - generic [ref=f1e1983]: JavaScript
+                  - generic [ref=f1e1984]: Copy
+              - code [ref=f1e1991]: "function findResponseByPrompt(promptText) { if (!promptText || promptText.length < 3) return null; const searchText = promptText.substring(0, 80); // Strategy 1: Find text node containing prompt, traverse up to message container, get next sibling const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); let node; while (node = walker.nextNode()) { if (node.textContent.includes(searchText)) { let el = node.parentElement; // Traverse up looking for a message-like container for (let i = 0; i < 6; i++) { if (!el || el === document.body) break; const parent = el.parentElement; if (!parent) break; const children = Array.from(parent.children); const idx = children.indexOf(el); if (idx >= 0 && idx < children.length - 1) { // Check next siblings for (let j = idx + 1; j < Math.min(idx + 4, children.length); j++) { const sibling = children[j]; const text = getText(sibling); if (text.length > 30) return sibling; } } el = parent; } break; } } // Strategy 2: Look for elements that appeared after startTime and contain substantial text return null; }"
+            - generic [ref=f1e1992]: This is good enough.
+            - generic [ref=f1e1993]:
+              - text: Now let me think about the network idle tracking. Using
+              - code [ref=f1e1994]: chrome.debugger.onEvent
+              - text: "at the top level:"
+            - generic [ref=f1e1995]:
+              - banner [ref=f1e1998]:
+                - generic [ref=f1e1999]:
+                  - generic [ref=f1e2000]: JavaScript
+                  - generic [ref=f1e2001]: Copy
+              - code [ref=f1e2008]:
+                - text: // At top of background.js, alongside other globals const _networkActivity = new Map(); chrome.debugger.onEvent.addListener((
+                - generic [ref=f1e2009]: source, method, params
+                - text: ") => { if (method.startsWith('Network.')) { _networkActivity.set(source.tabId, Date.now()); } });"
+            - generic [ref=f1e2010]:
+              - text: But wait, the existing code might already use
+              - code [ref=f1e2011]: chrome.debugger.onEvent
+              - text: for other things. Looking at the codebase... no, it doesn't. So this is safe.
+            - generic [ref=f1e2012]: "Now let me structure the final response:"
+            - list [ref=f1e2013]:
+              - listitem [ref=f1e2014]:
+                - generic [ref=f1e2015]:
+                  - strong [ref=f1e2016]: Critique
+                  - text: "- bullet points for each AI"
+              - listitem [ref=f1e2017]:
+                - generic [ref=f1e2018]:
+                  - strong [ref=f1e2019]: Decision
+                  - text: "- table showing what I take from each"
+              - listitem [ref=f1e2020]:
+                - generic [ref=f1e2021]:
+                  - strong [ref=f1e2022]: Implementation
+                  - text: "- the actual code block"
+              - listitem [ref=f1e2023]:
+                - generic [ref=f1e2024]:
+                  - strong [ref=f1e2025]: Integration
+                  - text: "- where to put it in existing code"
+              - listitem [ref=f1e2026]:
+                - generic [ref=f1e2027]:
+                  - strong [ref=f1e2028]: Trade-offs
+                  - text: "- honest discussion"
+            - generic [ref=f1e2029]: "For the implementation, I'll provide:"
+            - list [ref=f1e2030]:
+              - listitem [ref=f1e2031]:
+                - generic [ref=f1e2032]: Constants/config
+              - listitem [ref=f1e2033]:
+                - generic [ref=f1e2034]:
+                  - text: The
+                  - code [ref=f1e2035]: EXTRACTOR_SCRIPT
+                  - text: string
+              - listitem [ref=f1e2036]:
+                - generic [ref=f1e2037]:
+                  - code [ref=f1e2038]: watchForAnswer()
+                  - text: function
+              - listitem [ref=f1e2039]:
+                - generic [ref=f1e2040]: Helper functions
+              - listitem [ref=f1e2041]:
+                - generic [ref=f1e2042]: Integration snippet
+            - generic [ref=f1e2043]: Let me write the code carefully, making sure it's valid JS and handles edge cases.
+            - generic [ref=f1e2044]:
+              - text: "One concern: in the injected script,"
+              - code [ref=f1e2045]: window.__autopromptExtractor.disconnect()
+              - text: removes the global. But if I call it from
+              - code [ref=f1e2046]: finally
+              - text: via Runtime.evaluate, and the page has navigated, it might fail. That's fine - wrapped in try/catch.
+            - generic [ref=f1e2047]:
+              - text: "Another concern:"
+              - code [ref=f1e2048]: "chrome.debugger.sendCommand({ tabId }, 'Network.enable')"
+              - text: might fail if the tab doesn't support it (e.g., chrome:// pages). But we're only calling this on AI chat sites, so it's fine.
+            - generic [ref=f1e2049]:
+              - text: Let me also add a
+              - code [ref=f1e2050]: stripPrompt
+              - text: utility to remove the user's prompt from the beginning of the extracted text, since some sites include the conversation history.
+            - generic [ref=f1e2051]:
+              - banner [ref=f1e2054]:
+                - generic [ref=f1e2055]:
+                  - generic [ref=f1e2056]: JavaScript
+                  - generic [ref=f1e2057]: Copy
+              - code [ref=f1e2064]:
+                - text: function stripPrompt(
+                - generic [ref=f1e2065]: text, prompt
+                - text: ") { if (!text || !prompt) return text; const idx = text.indexOf(prompt); if (idx === 0) { return text.substring(prompt.length).trim(); } // Fuzzy: check first 100 chars const promptStart = prompt.substring(0, 50); const textStart = text.substring(0, 100); if (textStart.includes(promptStart)) { const fuzzyIdx = text.indexOf(promptStart); if (fuzzyIdx >= 0 && fuzzyIdx < 100) { // Find end of prompt let endIdx = fuzzyIdx + promptStart.length; // Look for the rest of the prompt const rest = prompt.substring(50); if (rest.length > 0 && text.substring(endIdx).startsWith(rest)) { endIdx += rest.length; } return text.substring(endIdx).trim(); } } return text; }"
+            - generic [ref=f1e2066]: Actually, this might be too aggressive. Better to just return the raw text and let the user handle it, or only strip if the prompt appears at the very beginning. I'll include it as an optional step.
+            - generic [ref=f1e2067]: Let me finalize the code. I'll make it production-ready.
+            - generic [ref=f1e2068]:
+              - text: "One more important thing: the"
+              - code [ref=f1e2069]: MutationObserver
+              - text: should also track
+              - code [ref=f1e2070]: characterData
+              - text: mutations on text nodes, because some sites stream by appending text to existing text nodes rather than adding new elements.
+            - generic [ref=f1e2071]:
+              - banner [ref=f1e2074]:
+                - generic [ref=f1e2075]:
+                  - generic [ref=f1e2076]: JavaScript
+                  - generic [ref=f1e2077]: Copy
+              - code [ref=f1e2084]: "observer.observe(document.body, { childList: true, subtree: true, characterData: true });"
+            - generic [ref=f1e2085]: This is already in my draft.
+            - generic [ref=f1e2086]: Also, I should handle shadow DOM. The basic MutationObserver doesn't cross shadow boundaries. For a 90% solution, I'll skip shadow DOM recursion but mention it as a known limitation. For the 100% solution, I'd need to recursively walk shadow roots.
+            - generic [ref=f1e2087]: Let me write the final code now. I'll organize it as a module that can be appended to background.js.
+            - generic [ref=f1e2088]:
+              - banner [ref=f1e2091]:
+                - generic [ref=f1e2092]:
+                  - generic [ref=f1e2093]: JavaScript
+                  - generic [ref=f1e2094]: Copy
+              - code [ref=f1e2101]:
+                - text: "// ============================================================================ // PART 2 — UNIVERSAL AI RESPONSE READER // ============================================================================ const READER_CONFIG = { STABILITY_MS: 3000, // Text must be stable for 3s NETWORK_IDLE_MS: 2500, // No network activity for 2.5s UI_SETTLED_MS: 2000, // UI signals stable for 2s POLL_INTERVAL_MS: 500, // Poll every 500ms MAX_WAIT_MS: 120000, // 2 minute absolute cap MIN_RESPONSE_LENGTH: 25, // Ignore tiny fragments LONG_STABILITY_MS: 6000 // If stable for 6s alone, call it done }; // Track network activity per tab (populated by global onEvent listener) const _readerNetworkActivity = new Map(); // Global listener — add this near the top of background.js with other listeners if (!window.__readerNetworkListenerInstalled) { chrome.debugger.onEvent.addListener(("
+                - generic [ref=f1e2102]: source, method, params
+                - text: ") => { if (method && method.startsWith('Network.')) { _readerNetworkActivity.set(source.tabId, Date.now()); } }); window.__readerNetworkListenerInstalled = true; } // ---- Injected observer script ------------------------------------------------ const READER_OBSERVER_SCRIPT = ` (function() { if (window.__autopromptReader) { window.__autopromptReader.reset(); return; } const state = { startTime: Date.now(), candidates: new Map(), lastMutationTime: 0, totalMutations: 0, promptElement: null }; state.promptElement = document.querySelector('[data-autoprompt-input=\"true\"]'); function getVisibleText(el) { if (!el) return ''; try { const clone = el.cloneNode(true); const removeSelectors = 'button, input, textarea, select, nav, header, footer, aside, script, style, svg, [role=\"button\"], [class*=\"spinner\"], [class*=\"loading\"], [class*=\"skeleton\"]'; clone.querySelectorAll(removeSelectors).forEach(e => e.remove()); return (clone.innerText || clone.textContent || '').trim(); } catch (e) { return (el.innerText || el.textContent || '').trim(); } } function isExcluded(el) { if (!el || el.nodeType !== 1) return true; const tag = el.tagName.toLowerCase(); if (['input','textarea','button','select','nav','header','footer','aside','script','style','svg','form'].includes(tag)) return true; if (el.isContentEditable) return true; if (el.closest && el.closest('[data-autoprompt-input=\"true\"]')) return true; if (el.matches && el.matches('[data-autoprompt-input=\"true\"]')) return true; const style = window.getComputedStyle(el); if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity) === 0) return true; const rect = el.getBoundingClientRect(); if (rect.width < 80 || rect.height < 20) return true; return false; } function getFingerprint(el) { const rect = el.getBoundingClientRect(); const cls = (el.className || '').toString().substring(0, 40); return el.tagName + '|' + Math.round(rect.x) + '|' + Math.round(rect.y) + '|' + cls; } function findStopButton() { const selectors = [ 'button[aria-label*=\"stop\" i]', 'button[aria-label*=\"halt\" i]', 'button[aria-label*=\"cancel\" i]', 'button[title*=\"stop\" i]', '[class*=\"stop-generating\" i]', '[class*=\"stop-button\" i]', 'button[class*=\"stop\" i]', 'button svg[class*=\"stop\" i]' ]; for (const sel of selectors) { const btn = document.querySelector(sel); if (btn) return true; } const buttons = document.querySelectorAll('button'); for (const btn of buttons) { const text = (btn.innerText || btn.textContent || '').toLowerCase(); if ((text.includes('stop') || text.includes('halt')) && text.length < 25) return true; } return false; } function checkInputState() { const input = state.promptElement || document.querySelector('[data-autoprompt-input=\"true\"]'); if (!input) return { exists: false, disabled: false, empty: true }; const disabled = input.disabled || input.readOnly || input.getAttribute('aria-disabled') === 'true'; const empty = (input.value || input.innerText || '').trim().length === 0; return { exists: true, disabled: !!disabled, empty }; } function findResponseByPrompt(promptText) { if (!promptText || promptText.length < 5) return null; const search = promptText.substring(0, 60).trim(); const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false); let node; while (node = walker.nextNode()) { if ("
+      - generic [ref=f1e1384]:
+        - generic [ref=f1e1386]:
+          - textbox [active] [ref=f1e1387]:
+            - paragraph [ref=f1e1509]
+          - generic: Ask anything. Images work too.
+        - generic [ref=f1e1398] [cursor=pointer]:
+          - generic [ref=f1e1399]: Instant
+          - generic [ref=f1e1400]: High

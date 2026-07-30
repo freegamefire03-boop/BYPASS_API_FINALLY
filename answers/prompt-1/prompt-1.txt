@@ -1,8 +1,61 @@
+Subject: 🚨 I need your expertise — my extension sends prompts but I can't read the AI's answers
+
+Hey team,
+
+I'm building a Chrome extension that automates conversations with AI chat sites. Here's where I'm at:
+
+Part 1 — Sending prompts ✅ WORKING
+The extension can open any AI chat site in a hidden tab, type a prompt, and hit send. It works across 6+ different sites. I'm using Chrome's debugger API to inject the text into the page. I have a stealth mode that avoids detection.
+
+Part 2 — Reading the answers ❌ I HAVE NO IDEA
+I need the extension to wait for the AI to finish typing its response, then grab the full answer text. But I don't want to write custom code for each website — I need one universal approach that works everywhere.
+
+What I'm giving you:
+Attached is my complete codebase (1397 lines). It's the full source — background.js, popup.js, popup.html, manifest.json. You can see exactly how Part 1 works.
+
+What I need from you:
+Read the codebase. Understand what this extension does. Then tell me:
+- How would YOU build Part 2?
+- What's the best strategy to detect when an AI finishes answering?
+- How do I extract the text reliably across different chat sites?
+- What pitfalls should I watch out for?
+
+Don't hold back. Give me your honest architectural recommendation. I want the best idea, not the easiest one.
+
+
+=== MY FULL CODEBASE ===
+
+# File Tree
+
+```
+├── .gitignore
+├── background.js
+├── manifest.json
+├── popup.html
+└── popup.js
+```
+
+# Source Files
+
+## `.gitignore`
+
+```
+.env
+.env.*
+*.key
+*.pem
+*token*
+*secret*
+node_modules/
+.DS_Store
+*.log
+```
+
+## `background.js`
+
+```js
 // ============================================================================
 // AI Chat Auto-Prompt — background service worker
-//
-// PART 1: Sending prompts to AI chat sites via CDP keystroke injection.
-// PART 2: Reading AI responses via a CDP-injected DOM watcher.
 //
 // THE CORE PROBLEM THIS FILE SOLVES:
 // Chrome only routes real, trusted input (including debugger-injected
@@ -64,80 +117,12 @@
 // whole flow works while Chrome is minimized, with no focus stealing.
 // ============================================================================
 
-// ---- In-progress submission state (kept in memory, synced to storage) ------
-let currentSubmission = null;
-
-function saveSubmissionToStorage() {
-  if (!currentSubmission) return;
-  chrome.storage.local.set({ [STORAGE_KEY]: currentSubmission }).catch(() => {});
-}
-
-function updateKeepalive(active) {
-  if (active) {
-    chrome.alarms.get(KEEPALIVE_ALARM_NAME, (alarm) => {
-      if (!alarm) chrome.alarms.create(KEEPALIVE_ALARM_NAME, { periodInMinutes: 0.5 });
-    });
-  } else {
-    chrome.alarms.clear(KEEPALIVE_ALARM_NAME).catch(() => {});
-  }
-}
-
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'RUN_AUTOMATION') {
-    // Supplementary note 4: reject new submit while running
-    if (currentSubmission && currentSubmission.status === 'running') {
-      sendResponse({ ok: false, error: 'Submission already in progress' });
-      return true;
-    }
-
-    const sessionCode = msg.sessionCode || generateSessionCode();
-    const sid = msg.submissionId || (Date.now() + '-' + Math.random().toString(36).slice(2, 10));
-    const originalPrompt = (msg.prompt || '').trim();
-
-    // Build & validate marker plan (up to 5 retries)
-    let markerPlan, attempts = 0;
-    while (attempts < 5) {
-      const code = attempts === 0 ? sessionCode : generateSessionCode();
-      markerPlan = buildMarkerPlan(code, originalPrompt);
-      if (validateMarkerPlan(markerPlan)) break;
-      attempts++;
-    }
-    if (!markerPlan || !validateMarkerPlan(markerPlan)) {
-      console.error('[MarkerPart2] marker collision after 5 attempts');
-      sendResponse({ ok: false, error: 'marker collision' });
-      return true;
-    }
-
-    console.log('[MarkerPart2] submission started', sid, markerPlan.sessionCode);
-
-    currentSubmission = {
-      submissionId: sid,
-      startedAt: Date.now(),
-      finishedAt: null,
-      status: 'running',
-      originalPrompt,
-      sessionCode: markerPlan.sessionCode,
-      startMarker: markerPlan.startMarker,
-      endMarker: markerPlan.endMarker,
-      wrappedPrompt: markerPlan.wrappedPrompt,
-      options: {
-        stealthMode: !!msg.experimentalBackground,
-        skipWait: !!msg.skipWait,
-        experimentalBackground: !!msg.experimentalBackground
-      },
-      tabs: []
-    };
-    saveSubmissionToStorage();
-    updateKeepalive(true);
-
-    // Pass delay(100) before running
-    delay(PREPARE_DELAY_MS).then(() => {
-      runAutomation(msg.urls, markerPlan.wrappedPrompt, markerPlan, {
-        skipWait: !!msg.skipWait,
-        experimentalBackground: !!msg.experimentalBackground
-      }).catch((err) => console.error('[AI Chat Auto-Prompt] automation failed:', err));
-    });
-
+    runAutomation(msg.urls, msg.prompt, {
+      skipWait: !!msg.skipWait,
+      experimentalBackground: !!msg.experimentalBackground
+    }).catch((err) => console.error('[AI Chat Auto-Prompt] automation failed:', err));
     sendResponse({ ok: true });
     return true;
   }
@@ -156,303 +141,6 @@ function makeLogger() {
   return { log };
 }
 
-// ---- Marker-based Part 2 constants & helpers --------------------------------
-const MARKER_START_PREFIX = "APSTART-";
-const MARKER_END_PREFIX = "APEND-";
-const SESSION_CODE_LENGTH = 10;
-const SESSION_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-const PREPARE_DELAY_MS = 100;
-const MARKER_POLL_MS = 400;
-const MARKER_MAX_WAIT_MS = 120000;
-const MARKER_CONFIRM_POLLS = 2;
-const MARKER_ANOMALY_GRACE_MS = 5000;
-const BACKGROUND_SAFETY_TIMEOUT_MS = 130000;
-const STORAGE_KEY = "autoprompt_latest_submission";
-const KEEPALIVE_ALARM_NAME = "autoprompt-marker-keepalive";
-
-function generateSessionCode() {
-  const bytes = new Uint8Array(SESSION_CODE_LENGTH);
-  crypto.getRandomValues(bytes);
-  let code = "";
-  for (let i = 0; i < SESSION_CODE_LENGTH; i++) {
-    code += SESSION_CODE_ALPHABET[bytes[i] % SESSION_CODE_ALPHABET.length];
-  }
-  return code;
-}
-
-function buildMarkerPlan(sessionCode, originalPrompt) {
-  const startMarker = MARKER_START_PREFIX + sessionCode;
-  const endMarker = MARKER_END_PREFIX + sessionCode;
-  const trimmed = (originalPrompt || "").trim();
-  const wrappedPrompt =
-    "MANDATORY OUTPUT FORMAT:\n" +
-    "You must strictly follow this output format. Do not include any conversational filler before or after the required markers.\n" +
-    "Do not wrap the markers in markdown formatting (no backticks, no bold, no bullet points, no headers).\n" +
-    "Output the markers as plain text exactly as shown.\n" +
-    "\n" +
-    "Session Code: " + sessionCode + "\n" +
-    "\n" +
-    "Instructions:\n" +
-    "- Your very first line must be: " + MARKER_START_PREFIX + " followed immediately by the session code\n" +
-    "- Your very last line must be: " + MARKER_END_PREFIX + " followed immediately by the session code\n" +
-    "- Do not print these markers anywhere else in your response\n" +
-    "- Do not explain the format or mention the session code in your actual answer\n" +
-    "\n" +
-    "USER REQUEST:\n" +
-    trimmed;
-  return { sessionCode, startMarker, endMarker, wrappedPrompt, originalPrompt: trimmed };
-}
-
-function validateMarkerPlan(plan) {
-  if (!plan.sessionCode || plan.sessionCode.length !== SESSION_CODE_LENGTH) return false;
-  if (!plan.originalPrompt) return false;
-  if (plan.wrappedPrompt.indexOf(plan.startMarker) !== -1) return false;
-  if (plan.wrappedPrompt.indexOf(plan.endMarker) !== -1) return false;
-  return true;
-}
-
-function applyWatcherResult(result, watcherResult, markerPlan) {
-  result.responseStatus = watcherResult.status;
-  result.answer = watcherResult.answer;
-  result.answerLength = watcherResult.answer.length;
-  result.confidence = watcherResult.confidence;
-  result.responseReason = watcherResult.reason;
-  result.method = watcherResult.method;
-  result.startCount = watcherResult.startCount;
-  result.endCount = watcherResult.endCount;
-  result.responseDurationMs = watcherResult.durationMs;
-  result.status = (watcherResult.status === 'success' || watcherResult.status === 'partial') ? 'success' : 'failed';
-  result.sessionCode = markerPlan.sessionCode;
-  result.startMarker = markerPlan.startMarker;
-  result.endMarker = markerPlan.endMarker;
-}
-
-// ---- Marker watcher (injected via CDP Runtime.evaluate) --------------------
-function buildMarkerWatcherExpression(plan) {
-  const config = {
-    startMarker: plan.startMarker,
-    endMarker: plan.endMarker,
-    pollMs: MARKER_POLL_MS,
-    maxWaitMs: MARKER_MAX_WAIT_MS,
-    confirmPolls: MARKER_CONFIRM_POLLS,
-    anomalyGraceMs: MARKER_ANOMALY_GRACE_MS
-  };
-  const configJson = JSON.stringify(config);
-  return `
-    (function() {
-      var cfg = ${configJson};
-      return new Promise(function(resolve) {
-        var startedAt = Date.now();
-        var exactConfirmCount = 0;
-        var anomalyConfirmCount = 0;
-        var firstMarkerSeenAt = null;
-        var resolved = false;
-
-        function finalize(value) {
-          if (resolved) return;
-          resolved = true;
-          resolve(value);
-        }
-
-        function countMarkers(text, marker) {
-          if (!text) return 0;
-          var count = 0, idx = 0;
-          while (idx !== -1) {
-            idx = text.indexOf(marker, idx);
-            if (idx !== -1) { count++; idx += marker.length; }
-          }
-          return count;
-        }
-
-        function tryExtract(text, firstStartIdx, lastStartIdx, lastEndIdx, mode) {
-          if (mode === 'exact' && lastEndIdx > lastStartIdx) {
-            return text.substring(lastStartIdx + cfg.startMarker.length, lastEndIdx).trim();
-          } else if (mode === 'anomaly' && lastEndIdx > firstStartIdx) {
-            return text.substring(firstStartIdx + cfg.startMarker.length, lastEndIdx).trim();
-          } else if (mode === 'partial' && lastStartIdx !== -1) {
-            return text.substring(lastStartIdx + cfg.startMarker.length).trim();
-          }
-          return '';
-        }
-
-        function findMarkers(text) {
-          if (!text) return { startCount: 0, endCount: 0, firstStartIdx: -1, lastStartIdx: -1, lastEndIdx: -1 };
-          return {
-            startCount: countMarkers(text, cfg.startMarker),
-            endCount: countMarkers(text, cfg.endMarker),
-            firstStartIdx: text.indexOf(cfg.startMarker),
-            lastStartIdx: text.lastIndexOf(cfg.startMarker),
-            lastEndIdx: text.lastIndexOf(cfg.endMarker)
-          };
-        }
-
-        function checkShadowRoots(root) {
-          if (!root || !root.querySelectorAll) return '';
-          var result = '';
-          if (root.textContent) result += root.textContent + ' ';
-          try {
-            var all = root.querySelectorAll('*');
-            for (var i = 0; i < all.length; i++) {
-              if (all[i].shadowRoot && all[i].shadowRoot.textContent) {
-                result += all[i].shadowRoot.textContent + ' ';
-              }
-            }
-          } catch(e) {}
-          return result;
-        }
-
-        function makeResult(ok, status, answer, confidence, method, reason, sc, ec, elapsed) {
-          return {
-            ok: ok, status: status, answer: answer, confidence: confidence,
-            method: method, reason: reason, startCount: sc, endCount: ec,
-            durationMs: elapsed || (Date.now() - startedAt),
-            url: location.href, title: document.title
-          };
-        }
-
-        function poll() {
-          try {
-            if (!document.body) { setTimeout(poll, cfg.pollMs); return; }
-
-            var text = (document.body.textContent || '');
-            var m = findMarkers(text);
-
-            if (m.startCount === 0 && m.endCount === 0) {
-              var altText = (document.body.innerText || '');
-              if (altText !== text) {
-                var altM = findMarkers(altText);
-                if (altM.startCount > 0 || altM.endCount > 0) { text = altText; m = altM; }
-              }
-              if (m.startCount === 0 && m.endCount === 0) {
-                var shText = checkShadowRoots(document.body);
-                if (shText) {
-                  var shM = findMarkers(shText);
-                  if (shM.startCount > 0 || shM.endCount > 0) { m = shM; }
-                }
-              }
-            }
-
-            var elapsed = Date.now() - startedAt;
-
-            if (m.startCount === 1 && m.endCount === 1 && m.lastEndIdx > m.lastStartIdx) {
-              exactConfirmCount++;
-              anomalyConfirmCount = 0;
-              if (exactConfirmCount >= cfg.confirmPolls) {
-                var answer = tryExtract(text, m.firstStartIdx, m.lastStartIdx, m.lastEndIdx, 'exact');
-                finalize(makeResult(true, 'success', answer, 'high', 'markers-exact', 'markers found', m.startCount, m.endCount, elapsed));
-                return;
-              }
-            } else if (m.startCount >= 1 && m.endCount >= 1 && m.lastEndIdx > m.lastStartIdx) {
-              if (firstMarkerSeenAt === null) firstMarkerSeenAt = Date.now();
-              if (Date.now() - firstMarkerSeenAt >= cfg.anomalyGraceMs) {
-                anomalyConfirmCount++;
-                if (anomalyConfirmCount >= cfg.confirmPolls) {
-                  var answer = tryExtract(text, m.firstStartIdx, m.lastStartIdx, m.lastEndIdx, 'anomaly');
-                  finalize(makeResult(true, 'success', answer, 'low', 'markers-anomaly', 'marker count anomaly', m.startCount, m.endCount, elapsed));
-                  return;
-                }
-              }
-            } else {
-              exactConfirmCount = 0;
-              anomalyConfirmCount = 0;
-            }
-
-            if (m.startCount > 0 || m.endCount > 0) {
-              if (firstMarkerSeenAt === null) firstMarkerSeenAt = Date.now();
-            }
-
-            if (elapsed >= cfg.maxWaitMs) {
-              if (m.startCount > 0 && m.endCount === 0) {
-                var partialAnswer = tryExtract(text, m.firstStartIdx, m.lastStartIdx, m.lastEndIdx, 'partial');
-                finalize(makeResult(true, 'partial', partialAnswer, 'low', 'partial-start-only', 'end marker missing', m.startCount, m.endCount, elapsed));
-              } else {
-                finalize(makeResult(false, 'failed', '', 'low', 'none', 'markers not found', m.startCount, m.endCount, elapsed));
-              }
-              return;
-            }
-          } catch (err) {
-            finalize(makeResult(false, 'failed', '', 'low', 'watcher-error', err.message || String(err), 0, 0, Date.now() - startedAt));
-            return;
-          }
-          setTimeout(poll, cfg.pollMs);
-        }
-
-        poll();
-      });
-    })()
-  `;
-}
-
-async function waitForMarkerResponse(tabId, plan, logger) {
-  const log = (msg) => logger.log(tabId, '[MarkerPart2] ' + msg);
-  const startTime = Date.now();
-
-  try {
-    const expression = buildMarkerWatcherExpression(plan);
-    const result = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
-      expression: expression,
-      returnByValue: true,
-      awaitPromise: true,
-      timeout: BACKGROUND_SAFETY_TIMEOUT_MS
-    });
-
-    if (result && result.result && result.result.value) {
-      const w = result.result.value;
-      log('watcher result: ' + w.status + ' (' + w.method + ') duration=' + w.durationMs + 'ms');
-      return {
-        status: w.status,
-        answer: w.answer || '',
-        confidence: w.confidence || 'low',
-        method: w.method || 'unknown',
-        reason: w.reason || '',
-        startCount: w.startCount || 0,
-        endCount: w.endCount || 0,
-        durationMs: w.durationMs || (Date.now() - startTime)
-      };
-    }
-
-    // No return value — treat as failure
-    log('watcher returned no value');
-    return {
-      status: 'failed', answer: '', confidence: 'low', method: 'watcher-error',
-      reason: 'no return value', startCount: 0, endCount: 0, durationMs: Date.now() - startTime
-    };
-  } catch (e) {
-    const msg = e.message || String(e);
-
-    // Navigation / context destruction — retry once
-    if (msg.includes('target') || msg.includes('context') || msg.includes('navigation') || msg.includes('detached')) {
-      log('watcher context lost (' + msg + ') — waiting for reload and retrying once');
-      try {
-        // Supplementary note 5: check if debugger was detached
-        if (msg.includes('detached')) {
-          return {
-            status: 'failed', answer: '', confidence: 'low', method: 'watcher-error',
-            reason: 'debugger detached', startCount: 0, endCount: 0, durationMs: Date.now() - startTime
-          };
-        }
-        // Wait for tab to finish loading (max 15s)
-        await waitForTabComplete(tabId, 15000);
-        // Retry watcher once
-        const retryResult = await waitForMarkerResponse(tabId, plan, logger);
-        log('watcher retry result: ' + retryResult.status);
-        return retryResult;
-      } catch (retryErr) {
-        log('watcher retry also failed: ' + (retryErr.message || String(retryErr)));
-        return {
-          status: 'failed', answer: '', confidence: 'low', method: 'watcher-error',
-          reason: 'navigation failure', startCount: 0, endCount: 0, durationMs: Date.now() - startTime
-        };
-      }
-    }
-
-    log('watcher error: ' + msg);
-    return {
-      status: 'failed', answer: '', confidence: 'low', method: 'watcher-error',
-      reason: msg, startCount: 0, endCount: 0, durationMs: Date.now() - startTime
-    };
-  }
-}
 // ---- Tab load / focus detection --------------------------------------------
 function waitForTabComplete(tabId, timeoutMs = 30000) {
   return new Promise((resolve) => {
@@ -730,7 +418,7 @@ async function dispatchKey(tabId, params) {
 
 async function sendTextThenEnter(tabId, prompt) {
   await chrome.debugger.sendCommand({ tabId }, 'Input.insertText', { text: prompt });
-  await delay(1300);
+  await delay(600);
   await dispatchKey(tabId, {
     type: 'rawKeyDown',
     windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, macCharCode: 13,
@@ -797,49 +485,36 @@ async function verifySend(tabId, originalUrl, logger) {
 }
 
 // ---- Targeted re-check + Stage 3 retry Enter -------------------------------
-async function recheckFailedTab(result, markerPlan, logger) {
+async function recheckFailedTab(result, logger) {
   try {
     const tab = await chrome.tabs.get(result.tabId);
 
+    // Re-activate the tab so the site's JavaScript wakes up and updates the DOM/URL
     await chrome.tabs.update(result.tabId, { active: true });
     if (tab && tab.windowId !== undefined) {
       await chrome.windows.update(tab.windowId, { focused: true });
     }
-    logger.log(result.tabId, 'Re-check: activated tab (' + result.url + ')');
+    logger.log(result.tabId, `Re-check: activated tab (${result.url})`);
 
+    // Give the site time to settle after being brought back to the front
     await delay(1500);
 
+    // ---- Stage 2: targeted re-check (unchanged) ----
     const verification = await verifySend(result.tabId, result.url, logger);
     if (verification.verified) {
-      result.sendStatus = 'success';
-      result.sendReason = 'Re-check: ' + verification.reason;
-      logger.log(result.tabId, 'Re-check passed — running marker watcher');
-      // Attach debugger for marker watcher
-      try {
-        await chrome.debugger.attach({ tabId: result.tabId }, '1.3');
-      } catch (e) {
-        if (!e.message || !e.message.includes('attached')) {
-          result.sendStatus = 'failed';
-          result.sendReason = 'Re-check: debugger attach failed';
-          result.status = 'error';
-          result.reason = 'Re-check: debugger attach failed: ' + e.message;
-          return;
-        }
-      }
-      const watcherResult = await waitForMarkerResponse(result.tabId, markerPlan, logger);
-      applyWatcherResult(result, watcherResult, markerPlan);
-      try { await chrome.debugger.detach({ tabId: result.tabId }); } catch (_e) {}
+      result.status = 'success';
+      result.reason = `Re-check success: ${verification.reason}`;
+      logger.log(result.tabId, 'Re-check passed — status updated to success');
       return;
     }
 
     logger.log(result.tabId, 'Re-check failed — evaluating Stage 3 (Retry Enter)');
 
+    // ---- Stage 3: Retry Enter only if the input box still contains text ----
     const remainingText = await getMarkedInputContent(result.tabId);
     if (remainingText === null || remainingText.trim() === '') {
       result.status = 'error';
-      result.sendStatus = 'failed';
-      result.sendReason = 'Re-check failed: ' + verification.reason;
-      result.reason = 'Re-check failed: ' + verification.reason;
+      result.reason = `Re-check failed: ${verification.reason}`;
       logger.log(result.tabId, 'Stage 3 skipped — input box is empty or no longer exists');
       return;
     }
@@ -849,55 +524,44 @@ async function recheckFailedTab(result, markerPlan, logger) {
     const focused = await focusMarkedInput(result.tabId);
     if (!focused) {
       result.status = 'error';
-      result.sendStatus = 'failed';
-      result.sendReason = 'Retry Enter skipped (could not focus marked input)';
-      result.reason = 'Re-check failed: ' + verification.reason + '; Retry Enter skipped (could not focus marked input)';
+      result.reason = `Re-check failed: ${verification.reason}; Retry Enter skipped (could not focus marked input)`;
       logger.log(result.tabId, 'Stage 3 failed — could not focus marked input');
       return;
     }
 
     await delay(200);
 
+    // Re-attach the debugger because trusted Enter key events require it
     let debuggerAttached = false;
     try {
       await chrome.debugger.attach({ tabId: result.tabId }, '1.3');
-      // Supplementary note 5: handle "already attached" error
       debuggerAttached = true;
       logger.log(result.tabId, 'Stage 3: debugger re-attached for Enter retry');
     } catch (e) {
-      if (e.message && e.message.includes('attached')) {
-        logger.log(result.tabId, 'Stage 3: debugger already attached — using existing');
-        debuggerAttached = true;
-      } else {
-        logger.log(result.tabId, 'Stage 3: debugger attach failed: ' + e.message);
-      }
+      logger.log(result.tabId, `Stage 3: debugger attach failed: ${e.message}`);
     }
 
     if (!debuggerAttached) {
       result.status = 'error';
-      result.sendStatus = 'failed';
-      result.sendReason = 'Retry Enter skipped (debugger attach failed)';
-      result.reason = 'Re-check failed: ' + verification.reason + '; Retry Enter skipped (debugger attach failed)';
+      result.reason = `Re-check failed: ${verification.reason}; Retry Enter skipped (debugger attach failed)`;
       return;
     }
 
     try {
       await sendEnterOnly(result.tabId);
       logger.log(result.tabId, 'Stage 3: Enter retry dispatched');
+
+      // Small settle delay before final verification
       await delay(300);
 
       const retryVerification = await verifySend(result.tabId, result.url, logger);
       if (retryVerification.verified) {
-        result.sendStatus = 'success';
-        result.sendReason = 'Retry Enter success: ' + retryVerification.reason;
-        logger.log(result.tabId, 'Stage 3 success — running marker watcher');
-        const watcherResult = await waitForMarkerResponse(result.tabId, markerPlan, logger);
-        applyWatcherResult(result, watcherResult, markerPlan);
+        result.status = 'success';
+        result.reason = `Retry Enter success: ${retryVerification.reason}`;
+        logger.log(result.tabId, 'Stage 3 passed — status updated to success');
       } else {
         result.status = 'error';
-        result.sendStatus = 'failed';
-        result.sendReason = 'Retry Enter failed: ' + retryVerification.reason;
-        result.reason = 'Retry Enter failed: ' + retryVerification.reason;
+        result.reason = `Retry Enter failed: ${retryVerification.reason}`;
         logger.log(result.tabId, 'Stage 3 failed — status remains error');
       }
     } finally {
@@ -907,15 +571,17 @@ async function recheckFailedTab(result, markerPlan, logger) {
       } catch (_e) {}
     }
   } catch (e) {
-    logger.log(result.tabId || result.url, 'Re-check error: ' + e.message);
+    logger.log(result.tabId || result.url, `Re-check error: ${e.message}`);
     result.status = 'error';
-    result.sendStatus = 'failed';
-    result.sendReason = 'Re-check error: ' + e.message;
-    result.reason = 'Re-check error: ' + e.message;
+    result.reason = `Re-check error: ${e.message}`;
   } finally {
     delete result.needsRecheck;
+
+    // Clean up the temporary input mark now that re-check and retry are finished
     if (result.tabId) {
-      try { await cleanupInputElementMark(result.tabId); } catch (_e) {}
+      try {
+        await cleanupInputElementMark(result.tabId);
+      } catch (_e) {}
     }
   }
 }
@@ -956,8 +622,8 @@ async function openAndAttach(url, skipWait, logger) {
   return { url, tabId, ok: true };
 }
 
-async function sendToActivatedTab(tabId, url, prompt, markerPlan, logger) {
-  const result = { url, tabId, status: 'unknown', reason: '', sendStatus: 'failed', sendReason: '', originalPrompt: markerPlan ? markerPlan.originalPrompt : '' };
+async function sendToActivatedTab(tabId, url, prompt, logger) {
+  const result = { url, tabId, status: 'unknown', reason: '' };
   try {
     const tab = await chrome.tabs.get(tabId);
     await chrome.tabs.update(tabId, { active: true });
@@ -979,8 +645,6 @@ async function sendToActivatedTab(tabId, url, prompt, markerPlan, logger) {
     if (!focused) {
       logger.log(tabId, 'Both primary and Tab fallback failed — no input box found, aborting tab');
       result.status = 'error';
-      result.sendStatus = 'failed';
-      result.sendReason = 'No input box found';
       result.reason = 'No input box found (primary detection + Tab fallback both failed)';
       return result;
     }
@@ -994,15 +658,12 @@ async function sendToActivatedTab(tabId, url, prompt, markerPlan, logger) {
 
     const verification = await verifySend(tabId, url, logger);
     if (verification.verified) {
-      result.sendStatus = 'success';
-      result.sendReason = verification.reason;
-      logger.log(tabId, 'Send verified — running marker watcher');
-      const watcherResult = await waitForMarkerResponse(tabId, markerPlan, logger);
-      applyWatcherResult(result, watcherResult, markerPlan);
+      // Success — clean up the temporary input mark immediately
       await cleanupInputElementMark(tabId);
+      result.status = 'success';
+      result.reason = verification.reason;
     } else {
-      result.sendStatus = 'failed';
-      result.sendReason = verification.reason;
+      // Failed — keep the input mark so the targeted re-check can inspect the same input box later
       result.status = 'error';
       result.reason = verification.reason;
       result.needsRecheck = true;
@@ -1010,10 +671,9 @@ async function sendToActivatedTab(tabId, url, prompt, markerPlan, logger) {
     }
   } catch (e) {
     logger.log(tabId, `Error during send: ${e.message}`);
-    result.sendStatus = 'failed';
-    result.sendReason = e.message;
     result.status = 'error';
     result.reason = e.message;
+    // Clean up the temporary input mark if it was added before the error
     try {
       await cleanupInputElementMark(tabId);
     } catch (_e) {}
@@ -1026,94 +686,98 @@ async function sendToActivatedTab(tabId, url, prompt, markerPlan, logger) {
   return result;
 }
 
-async function runAutomationAutoCycle(urls, prompt, markerPlan, skipWait, logger) {
-  logger.log('main', 'Starting run: ' + urls.length + ' URL(s), skipWait=' + skipWait + ', mode=auto-cycle');
+async function runAutomationAutoCycle(urls, prompt, skipWait, logger) {
+  logger.log('main', `Starting run: ${urls.length} URL(s), skipWait=${skipWait}, mode=auto-cycle (Ready Queue)`);
 
+  // 1. Launch all tabs in parallel. Each runs its own loading/wait logic.
   const tabPromises = urls.map((url) => openAndAttach(url, skipWait, logger));
 
   const readyQueue = [];
   const failedTabs = [];
   const startTime = Date.now();
 
+  // 2. Build the Ready Queue dynamically
   while (readyQueue.length < urls.length) {
     for (let i = 0; i < tabPromises.length; i++) {
       if (!tabPromises[i]) continue;
+
       let isResolved = false;
       let result = null;
+
       await Promise.race([
         tabPromises[i].then(res => { result = res; isResolved = true; }),
         Promise.resolve()
       ]);
+
       if (isResolved) {
         if (result.ok && result.tabId) {
           readyQueue.push(result);
-          logger.log(result.tabId, 'Added to Ready Queue (Position ' + readyQueue.length + ')');
+          logger.log(result.tabId, `Added to Ready Queue (Position ${readyQueue.length})`);
         } else {
           failedTabs.push(result);
         }
         tabPromises[i] = null;
       }
     }
+
     if (readyQueue.length === 0 && Date.now() - startTime > 1000) {
       logger.log('main', '1s elapsed with no ready tabs. Forcing first tab into queue.');
       const firstIdx = tabPromises.findIndex(p => p !== null);
       if (firstIdx === -1) break;
       const firstResult = await tabPromises[firstIdx];
-      if (firstResult.ok && firstResult.tabId) readyQueue.push(firstResult);
-      else failedTabs.push(firstResult);
+      if (firstResult.ok && firstResult.tabId) {
+        readyQueue.push(firstResult);
+      } else {
+        failedTabs.push(firstResult);
+      }
       tabPromises[firstIdx] = null;
       break;
     }
-    if (readyQueue.length > 0) break;
+
+    if (readyQueue.length > 0) {
+      break;
+    }
+
     await delay(100);
   }
 
+  // 3. Process the first batch of ready tabs
   const results = [...failedTabs];
   for (const state of readyQueue) {
-    const result = await sendToActivatedTab(state.tabId, state.url, prompt, markerPlan, logger);
+    const result = await sendToActivatedTab(state.tabId, state.url, prompt, logger);
     results.push(result);
-    if (currentSubmission) {
-      currentSubmission.tabs = results.map(r => ({ ...r }));
-      saveSubmissionToStorage();
-    }
   }
 
+  // 4. Process remaining tabs as they finish loading
   for (let i = 0; i < tabPromises.length; i++) {
     if (tabPromises[i] === null) continue;
     const state = await tabPromises[i];
     if (!state.ok || !state.tabId) {
-      const errResult = { url: state.url, tabId: state.tabId || null, status: 'error', reason: 'Failed to open or attach debugger', sendStatus: 'failed', sendReason: 'Failed to open or attach debugger' };
-      results.push(errResult);
-      if (currentSubmission) {
-        currentSubmission.tabs = results.map(r => ({ ...r }));
-        saveSubmissionToStorage();
-      }
+      results.push({ url: state.url, tabId: state.tabId || null, status: 'error', reason: 'Failed to open or attach debugger' });
       continue;
     }
     logger.log(state.tabId, 'Tab finished loading, added to processing queue.');
-    const result = await sendToActivatedTab(state.tabId, state.url, prompt, markerPlan, logger);
+    const result = await sendToActivatedTab(state.tabId, state.url, prompt, logger);
     results.push(result);
-    if (currentSubmission) {
-      currentSubmission.tabs = results.map(r => ({ ...r }));
-      saveSubmissionToStorage();
-    }
   }
 
+  // ---- Targeted re-check phase ----
+  // Only re-check tabs where the prompt was sent but initial verification failed.
   const tabsToRecheck = results.filter((r) => r.needsRecheck && r.tabId);
   if (tabsToRecheck.length > 0) {
-    logger.log('main', tabsToRecheck.length + ' tab(s) flagged — starting targeted re-check.');
+    logger.log('main', `Initial pass complete. ${tabsToRecheck.length} tab(s) flagged as failed — starting targeted re-check.`);
     for (const failedResult of tabsToRecheck) {
-      await recheckFailedTab(failedResult, markerPlan, logger);
-      if (currentSubmission) {
-        const idx = results.indexOf(failedResult);
-        if (idx !== -1) results[idx] = failedResult;
-        currentSubmission.tabs = results.map(r => ({ ...r }));
-        saveSubmissionToStorage();
-      }
+      await recheckFailedTab(failedResult, logger);
     }
+  } else {
+    logger.log('main', 'Initial pass complete. No tabs need targeted re-check.');
   }
 
+  // Remove internal flag before saving/displaying results
   results.forEach((r) => delete r.needsRecheck);
+
+  await chrome.storage.local.set({ lastRunResults: results, lastRunFinishedAt: Date.now() });
+  logger.log('main', `Run complete. Results stored: ${results.length} tab(s)`);
   return results;
 }
 
@@ -1165,9 +829,9 @@ async function stealthSetupTab(url, logger) {
   return state;
 }
 
-async function stealthSendToTab(tabState, prompt, markerPlan, skipWait, logger) {
+async function stealthSendToTab(tabState, prompt, skipWait, logger) {
   const { tabId, url } = tabState;
-  const result = { url, tabId, status: 'unknown', reason: '', sendStatus: 'failed', sendReason: '', originalPrompt: markerPlan ? markerPlan.originalPrompt : '' };
+  const result = { url, tabId, status: 'unknown', reason: '' };
 
   try {
     // Wait for the page to load
@@ -1175,12 +839,13 @@ async function stealthSendToTab(tabState, prompt, markerPlan, skipWait, logger) 
       await delay(1500);
       logger.log(tabId, 'Stealth: skip-wait mode — used 1.5s settle delay');
     } else {
-      await delay(500);
+      await delay(500); // let navigation start
       await waitForTabComplete(tabId, 30000);
       await delay(1200);
       logger.log(tabId, 'Stealth: waited for full page load + grace period');
     }
 
+    // DOM search for the best input candidate via Runtime.evaluate
     const evalResult = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
       expression: `
         (function() {
@@ -1219,16 +884,17 @@ async function stealthSendToTab(tabState, prompt, markerPlan, skipWait, logger) 
     if (!evalResult || !evalResult.result || !evalResult.result.objectId) {
       logger.log(tabId, 'Stealth: no input candidate found by DOM search');
       result.status = 'error';
-      result.sendStatus = 'failed';
-      result.sendReason = 'No input box found';
       result.reason = 'No input box found (stealth DOM search)';
       return result;
     }
 
     logger.log(tabId, 'Stealth: input candidate found — focusing via CDP DOM.focus');
+
+    // Protocol-level focus — bypasses OS focus requirement
     await chrome.debugger.sendCommand({ tabId }, 'DOM.focus', { objectId: evalResult.result.objectId });
     await delay(300);
 
+    // Insert text and press Enter
     await chrome.debugger.sendCommand({ tabId }, 'Input.insertText', { text: prompt });
     await delay(600);
 
@@ -1247,18 +913,15 @@ async function stealthSendToTab(tabState, prompt, markerPlan, skipWait, logger) 
 
     logger.log(tabId, 'Stealth: text inserted + Enter dispatched');
 
+    // Two-stage verification (reuses existing verifySend)
     const verification = await verifySend(tabId, url, logger);
 
     if (verification.verified) {
-      result.sendStatus = 'success';
-      result.sendReason = verification.reason;
-      logger.log(tabId, 'Send verified — running marker watcher');
-      const watcherResult = await waitForMarkerResponse(tabId, markerPlan, logger);
-      applyWatcherResult(result, watcherResult, markerPlan);
       await cleanupInputElementMark(tabId);
+      result.status = 'success';
+      result.reason = verification.reason;
     } else {
-      result.sendStatus = 'failed';
-      result.sendReason = verification.reason;
+      // Keep the input mark for re-check
       result.status = 'error';
       result.reason = verification.reason;
       result.needsRecheck = true;
@@ -1266,8 +929,6 @@ async function stealthSendToTab(tabState, prompt, markerPlan, skipWait, logger) 
     }
   } catch (e) {
     logger.log(tabId, `Stealth send error: ${e.message}`);
-    result.sendStatus = 'failed';
-    result.sendReason = e.message;
     result.status = 'error';
     result.reason = e.message;
     try { await cleanupInputElementMark(tabId); } catch (_e) {}
@@ -1276,36 +937,36 @@ async function stealthSendToTab(tabState, prompt, markerPlan, skipWait, logger) 
   return result;
 }
 
-async function stealthRecheckFailedTab(result, markerPlan, logger) {
+async function stealthRecheckFailedTab(result, logger) {
   try {
     logger.log(result.tabId, `Stealth re-check: waiting for page to settle (${result.url})`);
 
+    // Wait for the site to finish processing (no tab activation)
     await delay(2000);
 
+    // ---- Stage 2: re-run verification ----
     const verification = await verifySend(result.tabId, result.url, logger);
     if (verification.verified) {
-      result.sendStatus = 'success';
-      result.sendReason = 'Re-check: ' + verification.reason;
-      logger.log(result.tabId, 'Stealth re-check passed — running marker watcher');
-      const watcherResult = await waitForMarkerResponse(result.tabId, markerPlan, logger);
-      applyWatcherResult(result, watcherResult, markerPlan);
+      result.status = 'success';
+      result.reason = `Re-check success: ${verification.reason}`;
+      logger.log(result.tabId, 'Stealth re-check passed — status updated to success');
       return;
     }
 
     logger.log(result.tabId, 'Stealth re-check failed — evaluating Stage 3 (Retry Enter)');
 
+    // ---- Stage 3: Retry Enter only if input still contains text ----
     const remainingText = await getMarkedInputContent(result.tabId);
     if (remainingText === null || remainingText.trim() === '') {
       result.status = 'error';
-      result.sendStatus = 'failed';
-      result.sendReason = 'Re-check failed: ' + verification.reason;
-      result.reason = 'Re-check failed: ' + verification.reason;
+      result.reason = `Re-check failed: ${verification.reason}`;
       logger.log(result.tabId, 'Stage 3 skipped — input box is empty or no longer exists');
       return;
     }
 
     logger.log(result.tabId, 'Stage 3: input still has text — re-focusing via CDP and retrying Enter');
 
+    // Re-focus the marked element via CDP (not JavaScript .focus())
     try {
       const focusResult = await chrome.debugger.sendCommand({ tabId: result.tabId }, 'Runtime.evaluate', {
         expression: `
@@ -1323,20 +984,17 @@ async function stealthRecheckFailedTab(result, markerPlan, logger) {
       } else {
         logger.log(result.tabId, 'Stage 3: could not find marked element via CDP');
         result.status = 'error';
-        result.sendStatus = 'failed';
-        result.sendReason = 'Retry Enter skipped (element not found)';
-        result.reason = 'Re-check failed: ' + verification.reason + '; Retry Enter skipped (element not found)';
+        result.reason = `Re-check failed: ${verification.reason}; Retry Enter skipped (element not found)`;
         return;
       }
     } catch (e) {
-      logger.log(result.tabId, 'Stage 3: CDP focus error: ' + e.message);
+      logger.log(result.tabId, `Stage 3: CDP focus error: ${e.message}`);
       result.status = 'error';
-      result.sendStatus = 'failed';
-      result.sendReason = 'Retry Enter skipped (CDP focus error)';
-      result.reason = 'Re-check failed: ' + verification.reason + '; Retry Enter skipped (CDP focus error)';
+      result.reason = `Re-check failed: ${verification.reason}; Retry Enter skipped (CDP focus error)`;
       return;
     }
 
+    // Debugger is still attached from the initial send — no need to re-attach
     try {
       await sendEnterOnly(result.tabId);
       logger.log(result.tabId, 'Stage 3: Enter retry dispatched');
@@ -1344,31 +1002,23 @@ async function stealthRecheckFailedTab(result, markerPlan, logger) {
 
       const retryVerification = await verifySend(result.tabId, result.url, logger);
       if (retryVerification.verified) {
-        result.sendStatus = 'success';
-        result.sendReason = 'Retry Enter success: ' + retryVerification.reason;
-        logger.log(result.tabId, 'Stage 3 success — running marker watcher');
-        const watcherResult = await waitForMarkerResponse(result.tabId, markerPlan, logger);
-        applyWatcherResult(result, watcherResult, markerPlan);
+        result.status = 'success';
+        result.reason = `Retry Enter success: ${retryVerification.reason}`;
+        logger.log(result.tabId, 'Stage 3 passed — status updated to success');
       } else {
         result.status = 'error';
-        result.sendStatus = 'failed';
-        result.sendReason = 'Retry Enter failed: ' + retryVerification.reason;
-        result.reason = 'Retry Enter failed: ' + retryVerification.reason;
+        result.reason = `Retry Enter failed: ${retryVerification.reason}`;
         logger.log(result.tabId, 'Stage 3 failed — status remains error');
       }
     } catch (e) {
-      logger.log(result.tabId, 'Stage 3 error: ' + e.message);
+      logger.log(result.tabId, `Stage 3 error: ${e.message}`);
       result.status = 'error';
-      result.sendStatus = 'failed';
-      result.sendReason = 'Retry Enter error: ' + e.message;
-      result.reason = 'Retry Enter error: ' + e.message;
+      result.reason = `Retry Enter error: ${e.message}`;
     }
   } catch (e) {
-    logger.log(result.tabId || result.url, 'Stealth re-check error: ' + e.message);
+    logger.log(result.tabId || result.url, `Stealth re-check error: ${e.message}`);
     result.status = 'error';
-    result.sendStatus = 'failed';
-    result.sendReason = 'Re-check error: ' + e.message;
-    result.reason = 'Re-check error: ' + e.message;
+    result.reason = `Re-check error: ${e.message}`;
   } finally {
     delete result.needsRecheck;
     if (result.tabId) {
@@ -1377,9 +1027,10 @@ async function stealthRecheckFailedTab(result, markerPlan, logger) {
   }
 }
 
-async function runAutomationStealth(urls, prompt, markerPlan, skipWait, logger) {
-  logger.log('main', 'Starting run: ' + urls.length + ' URL(s), skipWait=' + skipWait + ', mode=stealth');
+async function runAutomationStealth(urls, prompt, skipWait, logger) {
+  logger.log('main', `Starting run: ${urls.length} URL(s), skipWait=${skipWait}, mode=stealth (parallel background)`);
 
+  // 1. Setup all tabs in parallel (about:blank → spoofing → navigate)
   const setupResults = await Promise.all(
     urls.map((url) => stealthSetupTab(url, logger))
   );
@@ -1390,95 +1041,384 @@ async function runAutomationStealth(urls, prompt, markerPlan, skipWait, logger) 
     if (state.ok && state.tabId) {
       readyTabs.push(state);
     } else {
-      results.push({ url: state.url, tabId: state.tabId || null, status: 'error', reason: 'Stealth setup failed: ' + (state.error || 'unknown'), sendStatus: 'failed', sendReason: 'Stealth setup failed' });
+      results.push({ url: state.url, tabId: state.tabId || null, status: 'error', reason: `Stealth setup failed: ${state.error || 'unknown'}` });
     }
   }
-  logger.log('main', 'Stealth: ' + readyTabs.length + ' tab(s) ready, ' + results.length + ' failed setup');
+  logger.log('main', `Stealth: ${readyTabs.length} tab(s) ready, ${results.length} failed setup`);
 
+  // 2. Send to ALL ready tabs in parallel
   const sendResults = await Promise.all(
-    readyTabs.map((state) => stealthSendToTab(state, prompt, markerPlan, skipWait, logger))
+    readyTabs.map((state) => stealthSendToTab(state, prompt, skipWait, logger))
   );
   results.push(...sendResults);
-  if (currentSubmission) {
-    currentSubmission.tabs = results.map(r => ({ ...r }));
-    saveSubmissionToStorage();
-  }
 
+  // 3. Targeted re-check for tabs that failed initial verification
   const tabsToRecheck = results.filter((r) => r.needsRecheck && r.tabId);
   if (tabsToRecheck.length > 0) {
-    logger.log('main', 'Stealth: ' + tabsToRecheck.length + ' tab(s) flagged — starting re-check');
+    logger.log('main', `Stealth: ${tabsToRecheck.length} tab(s) flagged — starting targeted re-check`);
     for (const failedResult of tabsToRecheck) {
-      await stealthRecheckFailedTab(failedResult, markerPlan, logger);
-      if (currentSubmission) {
-        const idx = results.indexOf(failedResult);
-        if (idx !== -1) results[idx] = failedResult;
-        currentSubmission.tabs = results.map(r => ({ ...r }));
-        saveSubmissionToStorage();
-      }
+      await stealthRecheckFailedTab(failedResult, logger);
     }
+  } else {
+    logger.log('main', 'Stealth: no tabs need targeted re-check');
   }
 
+  // 4. Cleanup: disable emulation and detach all debuggers
   for (const state of readyTabs) {
-    try { await chrome.debugger.sendCommand({ tabId: state.tabId }, 'Emulation.setFocusEmulationEnabled', { enabled: false }); } catch (_e) {}
-    try { await chrome.debugger.detach({ tabId: state.tabId }); logger.log(state.tabId, 'Stealth: debugger detached'); } catch (_e) {}
+    try {
+      await chrome.debugger.sendCommand({ tabId: state.tabId }, 'Emulation.setFocusEmulationEnabled', { enabled: false });
+    } catch (_e) {}
+    try {
+      await chrome.debugger.detach({ tabId: state.tabId });
+      logger.log(state.tabId, 'Stealth: debugger detached');
+    } catch (_e) {}
   }
 
+  // Remove internal flags before saving
   results.forEach((r) => delete r.needsRecheck);
+
+  await chrome.storage.local.set({ lastRunResults: results, lastRunFinishedAt: Date.now() });
+  logger.log('main', `Stealth run complete. Results stored: ${results.length} tab(s)`);
   return results;
 }
 
 // ---- Main entry point --------------------------------------------------------
-async function runAutomation(urls, prompt, markerPlan, opts) {
+async function runAutomation(urls, prompt, opts) {
   const logger = makeLogger();
   try {
     if (!Array.isArray(urls) || urls.length === 0) {
       logger.log('main', 'No URLs provided, aborting.');
-      if (currentSubmission) {
-        currentSubmission.status = 'completed';
-        currentSubmission.finishedAt = Date.now();
-        currentSubmission.tabs = currentSubmission.tabs || [];
-        saveSubmissionToStorage();
-      }
+      await chrome.storage.local.set({ lastRunResults: [], lastRunFinishedAt: Date.now() });
       return;
     }
 
     let results;
     if (opts.experimentalBackground) {
-      results = await runAutomationStealth(urls, prompt, markerPlan, opts.skipWait, logger);
+      results = await runAutomationStealth(urls, prompt, opts.skipWait, logger);
     } else {
-      results = await runAutomationAutoCycle(urls, prompt, markerPlan, opts.skipWait, logger);
+      results = await runAutomationAutoCycle(urls, prompt, opts.skipWait, logger);
     }
-
-    // Mark submission completed
-    if (currentSubmission) {
-      currentSubmission.status = 'completed';
-      currentSubmission.finishedAt = Date.now();
-      currentSubmission.tabs = results.map(r => ({ ...r }));
-      saveSubmissionToStorage();
-      updateKeepalive(false);
-    }
-
-    logger.log('main', 'Submission completed. ' + results.length + ' tab(s) processed.');
     return results;
   } catch (err) {
-    logger.log('main', 'Unhandled error: ' + (err && err.message));
-    if (currentSubmission) {
-      currentSubmission.status = 'completed';
-      currentSubmission.finishedAt = Date.now();
-      currentSubmission.tabs = currentSubmission.tabs || [];
-      saveSubmissionToStorage();
-      updateKeepalive(false);
-    }
+    logger.log('main', `Unhandled error: ${err && err.message}`);
+    await chrome.storage.local.set({ lastRunResults: [], lastRunFinishedAt: Date.now() });
     throw err;
   }
 }
+```
 
-// Keepalive alarm — keeps the service worker alive while submission runs
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === KEEPALIVE_ALARM_NAME) {
-    // No-op: just prevents the worker from being killed
-    if (currentSubmission && currentSubmission.status === 'running') {
-      chrome.storage.local.get(STORAGE_KEY, () => {});
-    }
+## `manifest.json`
+
+```json
+{
+  "manifest_version": 3,
+  "name": "BYPASS API_CLAUDE_BUREAU",
+  "version": "1.0.0",
+  "description": "Opens an AI chat URL and auto-sends your prompt by simulating a real Ctrl+V paste and Enter keystroke.",
+  "permissions": ["tabs", "scripting", "debugger", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
+```
+
+## `popup.html`
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    width: 320px;
+    padding: 14px;
+    background: #1e1e1e;
+    color: #eee;
+  }
+  h3 { margin: 0 0 4px 0; font-size: 15px; font-weight: 600; }
+  .sub { font-size: 11px; color: #888; margin-bottom: 10px; }
+  label {
+    font-size: 12px;
+    color: #aaa;
+    display: block;
+    margin-top: 10px;
+    margin-bottom: 4px;
+  }
+  input[type="text"], textarea {
+    width: 100%;
+    box-sizing: border-box;
+    background: #2b2b2b;
+    border: 1px solid #444;
+    color: #eee;
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  textarea { resize: vertical; min-height: 90px; }
+  input:focus, textarea:focus { outline: none; border-color: #4f7cff; }
+  button {
+    width: 100%;
+    margin-top: 14px;
+    padding: 10px;
+    border: none;
+    border-radius: 6px;
+    background: #4f7cff;
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:disabled { background: #555; cursor: default; }
+  #status { margin-top: 8px; font-size: 12px; color: #9ad; min-height: 14px; white-space: pre-line; }
+  #results-section {
+    margin-top: 14px;
+    border-top: 1px solid #333;
+    padding-top: 10px;
+    display: none;
+  }
+  #results-section h4 {
+    margin: 0 0 6px 0;
+    font-size: 12px;
+    color: #aaa;
+    font-weight: 600;
+  }
+  .result-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+  .result-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 3px;
+  }
+  .result-dot.success { background: #4caf50; }
+  .result-dot.uncertain { background: #ff9800; }
+  .result-dot.error { background: #f44336; }
+  .result-url {
+    color: #ccc;
+    word-break: break-all;
+  }
+  .result-reason {
+    color: #777;
+    font-size: 10px;
+    margin-top: 1px;
+  }
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 12px;
+    gap: 8px;
+  }
+  .toggle-row .toggle-label { font-size: 12px; color: #ccc; line-height: 1.3; }
+  .toggle-row .toggle-hint { font-size: 10px; color: #777; }
+  .switch { position: relative; display: inline-block; width: 36px; height: 20px; flex-shrink: 0; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute; cursor: pointer; inset: 0;
+    background-color: #444; transition: .15s; border-radius: 20px;
+  }
+  .slider:before {
+    position: absolute; content: ""; height: 14px; width: 14px;
+    left: 3px; bottom: 3px; background-color: white; transition: .15s; border-radius: 50%;
+  }
+  input:checked + .slider { background-color: #4f7cff; }
+  input:checked + .slider:before { transform: translateX(16px); }
+</style>
+</head>
+<body>
+  <h3>AI Chat Auto-Prompt</h3>
+  <div class="sub">Opens tabs in parallel, pastes, and hits Enter automatically.</div>
+
+  <label for="urls">AI chat URLs (one per line)</label>
+  <textarea id="urls" placeholder="https://gemini.google.com/app&#10;https://claude.ai/new&#10;https://chat.deepseek.com" style="min-height:70px;"></textarea>
+
+  <label for="prompt">Prompt</label>
+  <textarea id="prompt" placeholder="Type the prompt to send..."></textarea>
+
+  <div class="toggle-row">
+    <div>
+      <div class="toggle-label">Skip waiting for full page load</div>
+      <div class="toggle-hint">Starts checking for the input box ~1s after opening instead of waiting for "loaded"</div>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="skipWait">
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <div class="toggle-row">
+    <div>
+      <div class="toggle-label">Stealth mode (background)</div>
+      <div class="toggle-hint">All tabs run in parallel. Works while Chrome is minimized. No focus stealing.</div>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="experimentalBackground">
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <button id="submit">Open &amp; Send</button>
+  <div id="status"></div>
+
+  <div id="results-section">
+    <h4>Run Results</h4>
+    <div id="results-list"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
+```
+
+## `popup.js`
+
+```js
+const urlsInput = document.getElementById('urls');
+const promptInput = document.getElementById('prompt');
+const skipWaitInput = document.getElementById('skipWait');
+const experimentalBgInput = document.getElementById('experimentalBackground');
+const submitBtn = document.getElementById('submit');
+const statusEl = document.getElementById('status');
+const resultsSection = document.getElementById('results-section');
+const resultsList = document.getElementById('results-list');
+
+chrome.storage.local.get(['lastUrls', 'skipWait', 'experimentalBackground', 'lastRunResults'], (res) => {
+  if (res.lastUrls) urlsInput.value = res.lastUrls;
+  if (res.skipWait) skipWaitInput.checked = true;
+  if (res.experimentalBackground) experimentalBgInput.checked = true;
+  if (res.lastRunResults && res.lastRunResults.length > 0) {
+    displayResults(res.lastRunResults);
   }
 });
+
+skipWaitInput.addEventListener('change', () => {
+  chrome.storage.local.set({ skipWait: skipWaitInput.checked });
+});
+
+experimentalBgInput.addEventListener('change', () => {
+  chrome.storage.local.set({ experimentalBackground: experimentalBgInput.checked });
+});
+
+function parseUrls(raw) {
+  return raw
+    .split(/[\n,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((u) => (/^https?:\/\//i.test(u) ? u : 'https://' + u))
+    .filter((u, i, arr) => arr.indexOf(u) === i);
+}
+
+function displayResults(results) {
+  resultsList.innerHTML = '';
+  for (const r of results) {
+    const item = document.createElement('div');
+    item.className = 'result-item';
+
+    const dot = document.createElement('div');
+    dot.className = 'result-dot ' + r.status;
+    item.appendChild(dot);
+
+    const textWrap = document.createElement('div');
+
+    const urlEl = document.createElement('div');
+    urlEl.className = 'result-url';
+    try {
+      urlEl.textContent = new URL(r.url).hostname;
+    } catch (_e) {
+      urlEl.textContent = r.url;
+    }
+    textWrap.appendChild(urlEl);
+
+    const reasonEl = document.createElement('div');
+    reasonEl.className = 'result-reason';
+    reasonEl.textContent = r.status === 'success' ? r.reason : 'FAILED: ' + r.reason;
+    textWrap.appendChild(reasonEl);
+
+    item.appendChild(textWrap);
+    resultsList.appendChild(item);
+  }
+  resultsSection.style.display = 'block';
+}
+
+submitBtn.addEventListener('click', async () => {
+  const urls = parseUrls(urlsInput.value);
+  const prompt = promptInput.value;
+  const skipWait = skipWaitInput.checked;
+
+  if (urls.length === 0) {
+    statusEl.textContent = 'Enter at least one URL first.';
+    return;
+  }
+  if (!prompt) {
+    statusEl.textContent = 'Enter a prompt first.';
+    return;
+  }
+
+  resultsSection.style.display = 'none';
+  resultsList.innerHTML = '';
+  await chrome.storage.local.remove('lastRunResults');
+
+  chrome.storage.local.set({ lastUrls: urlsInput.value, skipWait, experimentalBackground: experimentalBgInput.checked });
+
+  submitBtn.disabled = true;
+  statusEl.textContent = 'Working... opening ' + urls.length + ' tab' + (urls.length > 1 ? 's' : '') + ' in parallel.';
+
+  try {
+    await chrome.runtime.sendMessage({
+      type: 'RUN_AUTOMATION',
+      urls,
+      prompt,
+      skipWait,
+      experimentalBackground: experimentalBgInput.checked
+    });
+    statusEl.textContent = 'Tabs opened. Sending prompt, then verifying...';
+  } catch (e) {
+    statusEl.textContent = 'Error: ' + (e && e.message ? e.message : e);
+    submitBtn.disabled = false;
+    return;
+  }
+
+  pollForResults();
+});
+
+function pollForResults() {
+  var maxWait = 180000;
+  var interval = 1000;
+  var elapsed = 0;
+
+  function check() {
+    chrome.storage.local.get(['lastRunResults', 'lastRunFinishedAt'], (res) => {
+      if (res.lastRunFinishedAt && res.lastRunResults) {
+        displayResults(res.lastRunResults);
+        var successCount = res.lastRunResults.filter(function (r) { return r.status === 'success'; }).length;
+        var totalCount = res.lastRunResults.length;
+        statusEl.textContent = 'Done: ' + successCount + '/' + totalCount + ' succeeded.';
+        submitBtn.disabled = false;
+        return;
+      }
+      elapsed += interval;
+      if (elapsed >= maxWait) {
+        statusEl.textContent = 'Timed out waiting for results. Check service worker console.';
+        submitBtn.disabled = false;
+        return;
+      }
+      setTimeout(check, interval);
+    });
+  }
+  check();
+}
+```

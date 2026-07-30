@@ -1,0 +1,23 @@
+Gemini Answer — Round 1
+========================
+
+### "Heuristic DOM Settling" + "Input State Tracking" Strategy
+
+Use CDP keystroke injection (existing Part 1) combined with DOM monitoring.
+
+### Phase 1: Identify the Stream ("Growing Node")
+Attach MutationObserver to document.body, track addedNodes. Find the node whose textContent.length increases most rapidly over 500ms windows — that's your activeResponseNode.
+
+### Phase 2: The Settle Timer (Debouncing)
+Every time MutationObserver fires for activeResponseNode, reset a 2500ms debounce timer. When timer reaches zero → stream is finished.
+
+### Phase 3: The "Input Lock" Signal
+Poll the input element (marked with data-autoprompt-input). When the Settle Timer hits zero AND the input is re-enabled/editable again → 99% confidence generation is complete.
+
+### Extraction
+Traverse up from activeResponseNode to the nearest block-level container. Extract innerHTML, then use a lightweight HTML-to-Markdown library to preserve formatting.
+
+### Pitfalls
+- **"Thinking" Pause**: Models pause 3-5s mid-stream. Settle timer needs at least 2500ms.
+- **Markdown Re-renders**: Raw text nodes may be deleted and replaced with styled DOM after stream finishes. Observer must handle node swaps.
+- **Streaming Chunk Size**: Text arrives in big chunks, not keystrokes. Monitor textContent.length jumps.

@@ -1,0 +1,36 @@
+Kimi (K2.6) Answer — Round 1
+=============================
+
+## The "Conversation Archaeology" Engine
+
+**Core Philosophy**: Don't find the response. *Discover* it by watching what changes after the prompt leaves the input box.
+
+### Three-Layer Detection Stack
+- **L1: Mutation Observer** — Detect where new text is landing (DOM tree + text mutations)
+- **L2: Heuristic Scorer** — Identify which changed element is the AI response (position, size, text velocity, tag exclusion)
+- **L3: Stability Timer** — Know when response is "done" (text growth stops + network idle + max timeout)
+
+### How It Works
+1. **Pre-Injection**: Before dispatching Enter, inject MutationObserver via CDP Runtime.evaluate
+2. **Heuristic Scorer**: After sending, poll via Runtime.evaluate. The AI response is the element that: appeared/grew significantly, is in lower 70% of viewport, has highest text velocity, has large final text length, not in a form/input container
+3. **Completion Detection** (multi-signal):
+   - Primary: Text stability (no changes for 2.5s)
+   - Secondary: Network idle (CDP Network domain, no events for 2s)
+   - Tertiary: Max timeout (90s)
+   - Quaternary: Visual cues (loading indicators disappeared)
+4. **Text Extraction**: Extract innerText from scored element; optionally preserve HTML-to-markdown formatting
+
+### Integration: Hook `readResponse` after `verifySend` succeeds. Keep debugger attached until Part 2 completes.
+
+### Pitfalls
+- Shadow DOM (inject recursive shadow walker)
+- Iframes (inject observers into accessible frames)
+- False positives from UI updates (isExcluded filter)
+- Multi-message responses (track parent container)
+- "Thinking" blocks (set stability timer to 3.5s)
+- Bot detection (scroll candidate element into view)
+- Memory/CPU leak (always disconnect observer)
+- Debugger detachment mid-read (keep attached)
+
+### Summary
+"Don't write selectors. Write a profiler." Profile the page's DOM before and after the prompt. The element that explodes in text length at the bottom of the page after the prompt is sent — that's your answer.
