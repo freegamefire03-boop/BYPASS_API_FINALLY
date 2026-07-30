@@ -3,7 +3,7 @@
   "name": "BYPASS API_CLAUDE_BUREAU",
   "version": "1.0.0",
   "description": "Opens an AI chat URL and auto-sends your prompt by simulating a real Ctrl+V paste and Enter keystroke.",
-  "permissions": ["tabs", "scripting", "debugger", "storage"],
+  "permissions": ["tabs", "scripting", "debugger", "storage", "alarms", "unlimitedStorage"],
   "host_permissions": ["<all_urls>"],
   "action": {
     "default_popup": "popup.html"
