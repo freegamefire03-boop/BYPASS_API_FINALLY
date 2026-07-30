@@ -314,14 +314,14 @@ function buildMarkerWatcherExpression(plan) {
           try {
             if (!document.body) { setTimeout(poll, cfg.pollMs); return; }
 
-            var text = (document.body.textContent || '');
+            var text = (document.body.innerText || '');
             var m = findMarkers(text);
 
             if (m.startCount === 0 && m.endCount === 0) {
-              var altText = (document.body.innerText || '');
-              if (altText !== text) {
-                var altM = findMarkers(altText);
-                if (altM.startCount > 0 || altM.endCount > 0) { text = altText; m = altM; }
+              var dtText = (document.body.textContent || '');
+              if (dtText !== text) {
+                var dtM = findMarkers(dtText);
+                if (dtM.startCount > 0 || dtM.endCount > 0) { text = dtText; m = dtM; }
               }
               if (m.startCount === 0 && m.endCount === 0) {
                 var shText = checkShadowRoots(document.body);
