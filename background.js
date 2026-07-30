@@ -730,7 +730,7 @@ async function dispatchKey(tabId, params) {
 
 async function sendTextThenEnter(tabId, prompt) {
   await chrome.debugger.sendCommand({ tabId }, 'Input.insertText', { text: prompt });
-  await delay(600);
+  await delay(1300);
   await dispatchKey(tabId, {
     type: 'rawKeyDown',
     windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, macCharCode: 13,
