@@ -67,6 +67,8 @@ submitBtn.addEventListener('click', async () => {
 
   resultsSection.style.display = 'none';
   resultsList.innerHTML = '';
+  downloadAnswersBtn.style.display = 'none';
+  downloadJsonBtn.style.display = 'none';
 
   chrome.storage.local.set({ lastUrls: urlsInput.value, skipWait, experimentalBackground: experimentalBgInput.checked });
 

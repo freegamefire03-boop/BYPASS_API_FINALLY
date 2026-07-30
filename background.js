@@ -211,6 +211,22 @@ function validateMarkerPlan(plan) {
   return true;
 }
 
+function applyWatcherResult(result, watcherResult, markerPlan) {
+  result.responseStatus = watcherResult.status;
+  result.answer = watcherResult.answer;
+  result.answerLength = watcherResult.answer.length;
+  result.confidence = watcherResult.confidence;
+  result.responseReason = watcherResult.reason;
+  result.method = watcherResult.method;
+  result.startCount = watcherResult.startCount;
+  result.endCount = watcherResult.endCount;
+  result.responseDurationMs = watcherResult.durationMs;
+  result.status = (watcherResult.status === 'success' || watcherResult.status === 'partial') ? 'success' : 'failed';
+  result.sessionCode = markerPlan.sessionCode;
+  result.startMarker = markerPlan.startMarker;
+  result.endMarker = markerPlan.endMarker;
+}
+
 // ---- Marker watcher (injected via CDP Runtime.evaluate) --------------------
 function buildMarkerWatcherExpression(plan) {
   const config = {
@@ -798,20 +814,21 @@ async function recheckFailedTab(result, markerPlan, logger) {
       result.sendStatus = 'success';
       result.sendReason = 'Re-check: ' + verification.reason;
       logger.log(result.tabId, 'Re-check passed — running marker watcher');
+      // Attach debugger for marker watcher
+      try {
+        await chrome.debugger.attach({ tabId: result.tabId }, '1.3');
+      } catch (e) {
+        if (!e.message || !e.message.includes('attached')) {
+          result.sendStatus = 'failed';
+          result.sendReason = 'Re-check: debugger attach failed';
+          result.status = 'error';
+          result.reason = 'Re-check: debugger attach failed: ' + e.message;
+          return;
+        }
+      }
       const watcherResult = await waitForMarkerResponse(result.tabId, markerPlan, logger);
-      result.responseStatus = watcherResult.status;
-      result.answer = watcherResult.answer;
-      result.answerLength = watcherResult.answer.length;
-      result.confidence = watcherResult.confidence;
-      result.responseReason = watcherResult.reason;
-      result.method = watcherResult.method;
-      result.startCount = watcherResult.startCount;
-      result.endCount = watcherResult.endCount;
-      result.responseDurationMs = watcherResult.durationMs;
-      result.status = (watcherResult.status === 'success' || watcherResult.status === 'partial') ? 'success' : 'failed';
-      result.sessionCode = markerPlan.sessionCode;
-      result.startMarker = markerPlan.startMarker;
-      result.endMarker = markerPlan.endMarker;
+      applyWatcherResult(result, watcherResult, markerPlan);
+      try { await chrome.debugger.detach({ tabId: result.tabId }); } catch (_e) {}
       return;
     }
 
@@ -875,19 +892,7 @@ async function recheckFailedTab(result, markerPlan, logger) {
         result.sendReason = 'Retry Enter success: ' + retryVerification.reason;
         logger.log(result.tabId, 'Stage 3 success — running marker watcher');
         const watcherResult = await waitForMarkerResponse(result.tabId, markerPlan, logger);
-        result.responseStatus = watcherResult.status;
-        result.answer = watcherResult.answer;
-        result.answerLength = watcherResult.answer.length;
-        result.confidence = watcherResult.confidence;
-        result.responseReason = watcherResult.reason;
-        result.method = watcherResult.method;
-        result.startCount = watcherResult.startCount;
-        result.endCount = watcherResult.endCount;
-        result.responseDurationMs = watcherResult.durationMs;
-        result.status = (watcherResult.status === 'success' || watcherResult.status === 'partial') ? 'success' : 'failed';
-        result.sessionCode = markerPlan.sessionCode;
-        result.startMarker = markerPlan.startMarker;
-        result.endMarker = markerPlan.endMarker;
+        applyWatcherResult(result, watcherResult, markerPlan);
       } else {
         result.status = 'error';
         result.sendStatus = 'failed';
@@ -993,19 +998,7 @@ async function sendToActivatedTab(tabId, url, prompt, markerPlan, logger) {
       result.sendReason = verification.reason;
       logger.log(tabId, 'Send verified — running marker watcher');
       const watcherResult = await waitForMarkerResponse(tabId, markerPlan, logger);
-      result.responseStatus = watcherResult.status;
-      result.answer = watcherResult.answer;
-      result.answerLength = watcherResult.answer.length;
-      result.confidence = watcherResult.confidence;
-      result.responseReason = watcherResult.reason;
-      result.method = watcherResult.method;
-      result.startCount = watcherResult.startCount;
-      result.endCount = watcherResult.endCount;
-      result.responseDurationMs = watcherResult.durationMs;
-      result.status = (watcherResult.status === 'success' || watcherResult.status === 'partial') ? 'success' : 'failed';
-      result.sessionCode = markerPlan.sessionCode;
-      result.startMarker = markerPlan.startMarker;
-      result.endMarker = markerPlan.endMarker;
+      applyWatcherResult(result, watcherResult, markerPlan);
       await cleanupInputElementMark(tabId);
     } else {
       result.sendStatus = 'failed';
@@ -1261,19 +1254,7 @@ async function stealthSendToTab(tabState, prompt, markerPlan, skipWait, logger) 
       result.sendReason = verification.reason;
       logger.log(tabId, 'Send verified — running marker watcher');
       const watcherResult = await waitForMarkerResponse(tabId, markerPlan, logger);
-      result.responseStatus = watcherResult.status;
-      result.answer = watcherResult.answer;
-      result.answerLength = watcherResult.answer.length;
-      result.confidence = watcherResult.confidence;
-      result.responseReason = watcherResult.reason;
-      result.method = watcherResult.method;
-      result.startCount = watcherResult.startCount;
-      result.endCount = watcherResult.endCount;
-      result.responseDurationMs = watcherResult.durationMs;
-      result.status = (watcherResult.status === 'success' || watcherResult.status === 'partial') ? 'success' : 'failed';
-      result.sessionCode = markerPlan.sessionCode;
-      result.startMarker = markerPlan.startMarker;
-      result.endMarker = markerPlan.endMarker;
+      applyWatcherResult(result, watcherResult, markerPlan);
       await cleanupInputElementMark(tabId);
     } else {
       result.sendStatus = 'failed';
@@ -1307,19 +1288,7 @@ async function stealthRecheckFailedTab(result, markerPlan, logger) {
       result.sendReason = 'Re-check: ' + verification.reason;
       logger.log(result.tabId, 'Stealth re-check passed — running marker watcher');
       const watcherResult = await waitForMarkerResponse(result.tabId, markerPlan, logger);
-      result.responseStatus = watcherResult.status;
-      result.answer = watcherResult.answer;
-      result.answerLength = watcherResult.answer.length;
-      result.confidence = watcherResult.confidence;
-      result.responseReason = watcherResult.reason;
-      result.method = watcherResult.method;
-      result.startCount = watcherResult.startCount;
-      result.endCount = watcherResult.endCount;
-      result.responseDurationMs = watcherResult.durationMs;
-      result.status = (watcherResult.status === 'success' || watcherResult.status === 'partial') ? 'success' : 'failed';
-      result.sessionCode = markerPlan.sessionCode;
-      result.startMarker = markerPlan.startMarker;
-      result.endMarker = markerPlan.endMarker;
+      applyWatcherResult(result, watcherResult, markerPlan);
       return;
     }
 
@@ -1379,19 +1348,7 @@ async function stealthRecheckFailedTab(result, markerPlan, logger) {
         result.sendReason = 'Retry Enter success: ' + retryVerification.reason;
         logger.log(result.tabId, 'Stage 3 success — running marker watcher');
         const watcherResult = await waitForMarkerResponse(result.tabId, markerPlan, logger);
-        result.responseStatus = watcherResult.status;
-        result.answer = watcherResult.answer;
-        result.answerLength = watcherResult.answer.length;
-        result.confidence = watcherResult.confidence;
-        result.responseReason = watcherResult.reason;
-        result.method = watcherResult.method;
-        result.startCount = watcherResult.startCount;
-        result.endCount = watcherResult.endCount;
-        result.responseDurationMs = watcherResult.durationMs;
-        result.status = (watcherResult.status === 'success' || watcherResult.status === 'partial') ? 'success' : 'failed';
-        result.sessionCode = markerPlan.sessionCode;
-        result.startMarker = markerPlan.startMarker;
-        result.endMarker = markerPlan.endMarker;
+        applyWatcherResult(result, watcherResult, markerPlan);
       } else {
         result.status = 'error';
         result.sendStatus = 'failed';
