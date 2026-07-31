@@ -162,10 +162,14 @@ const MARKER_END_PREFIX = "APEND-";
 const SESSION_CODE_LENGTH = 10;
 const SESSION_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const PREPARE_DELAY_MS = 100;
-const MARKER_POLL_MS = 400;
+const MARKER_POLL_MS = 500;
 const MARKER_MAX_WAIT_MS = 120000;
-const MARKER_CONFIRM_POLLS = 2;
-const MARKER_ANOMALY_GRACE_MS = 5000;
+const SETTLE_NORMAL_MS = 2500;
+const SETTLE_ACTIVE_MS = 10000;
+const MIN_GROWTH_DELTA = 5;
+const TRANSIENT_SIGNAL_CACHE_MS = 1000;
+const MAX_TRANSIENT_ELEMENTS_CHECKED = 200;
+const DEBUG_SNIPPET_LENGTH = 1000;
 const BACKGROUND_SAFETY_TIMEOUT_MS = 130000;
 const STORAGE_KEY = "autoprompt_latest_submission";
 const KEEPALIVE_ALARM_NAME = "autoprompt-marker-keepalive";
@@ -214,44 +218,145 @@ function validateMarkerPlan(plan) {
 function applyWatcherResult(result, watcherResult, markerPlan) {
   result.responseStatus = watcherResult.status;
   result.answer = watcherResult.answer;
-  result.answerLength = watcherResult.answer.length;
+  result.answerLength = (watcherResult.answer || '').length;
   result.confidence = watcherResult.confidence;
   result.responseReason = watcherResult.reason;
   result.method = watcherResult.method;
-  result.startCount = watcherResult.startCount;
-  result.endCount = watcherResult.endCount;
-  result.responseDurationMs = watcherResult.durationMs;
+  result.startCount = watcherResult.startCount || 0;
+  result.endCount = watcherResult.endCount || 0;
+  result.multipleMarkers = !!watcherResult.multipleMarkers;
+  result.responseDurationMs = watcherResult.durationMs || 0;
+  result.settleMsUsed = watcherResult.settleMsUsed || 0;
+  result.transientGeneratingAtFire = !!watcherResult.transientGeneratingAtFire;
+  result.growthSource = watcherResult.growthSource || 'none';
+  result.debugSnippet = watcherResult.debugSnippet || null;
   result.status = (watcherResult.status === 'success' || watcherResult.status === 'partial') ? 'success' : 'failed';
   result.sessionCode = markerPlan.sessionCode;
   result.startMarker = markerPlan.startMarker;
   result.endMarker = markerPlan.endMarker;
 }
 
-// ---- Marker watcher (injected via CDP Runtime.evaluate) --------------------
-function buildMarkerWatcherExpression(plan) {
-  const config = {
-    startMarker: plan.startMarker,
-    endMarker: plan.endMarker,
-    pollMs: MARKER_POLL_MS,
-    maxWaitMs: MARKER_MAX_WAIT_MS,
-    confirmPolls: MARKER_CONFIRM_POLLS,
-    anomalyGraceMs: MARKER_ANOMALY_GRACE_MS
+async function waitForMarkerResponse(tabId, plan, logger, remainingMaxWaitMs) {
+  const log = (msg) => logger.log(tabId, '[MarkerPart2] ' + msg);
+  const startTime = Date.now();
+  const effectiveMaxWait = remainingMaxWaitMs || MARKER_MAX_WAIT_MS;
+
+  try {
+    const config = {
+      startMarker: plan.startMarker,
+      endMarker: plan.endMarker,
+      pollMs: MARKER_POLL_MS,
+      maxWaitMs: effectiveMaxWait,
+      settleNormalMs: SETTLE_NORMAL_MS,
+      settleActiveMs: SETTLE_ACTIVE_MS,
+      minGrowthDelta: MIN_GROWTH_DELTA,
+      transientSignalCacheMs: TRANSIENT_SIGNAL_CACHE_MS,
+      maxTransientElementsChecked: MAX_TRANSIENT_ELEMENTS_CHECKED,
+      debugSnippetLength: DEBUG_SNIPPET_LENGTH
+    };
+    const expression = buildInjectedWatcher(config);
+    const result = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
+      expression: expression,
+      returnByValue: true,
+      awaitPromise: true,
+      timeout: BACKGROUND_SAFETY_TIMEOUT_MS
+    });
+
+    if (result && result.result && result.result.value) {
+      const w = result.result.value;
+      log('watcher result: ' + w.status + ' (' + w.method + ') duration=' + w.durationMs + 'ms' +
+        ' startCount=' + w.startCount + ' endCount=' + w.endCount +
+        ' settleMs=' + w.settleMsUsed + ' transient=' + w.transientGeneratingAtFire +
+        ' source=' + w.growthSource);
+      return {
+        status: w.status,
+        answer: w.answer || '',
+        confidence: w.confidence || 'low',
+        method: w.method || 'unknown',
+        reason: w.reason || '',
+        startCount: w.startCount || 0,
+        endCount: w.endCount || 0,
+        multipleMarkers: !!w.multipleMarkers,
+        durationMs: w.durationMs || (Date.now() - startTime),
+        settleMsUsed: w.settleMsUsed || 0,
+        transientGeneratingAtFire: !!w.transientGeneratingAtFire,
+        growthSource: w.growthSource || 'none',
+        debugSnippet: w.debugSnippet || null
+      };
+    }
+
+    log('watcher returned no value');
+    return {
+      status: 'failed', answer: '', confidence: 'low', method: 'watcher-error',
+      reason: 'no return value', startCount: 0, endCount: 0, multipleMarkers: false,
+      durationMs: Date.now() - startTime, settleMsUsed: 0,
+      transientGeneratingAtFire: false, growthSource: 'none', debugSnippet: null
+    };
+  } catch (e) {
+    const msg = e.message || String(e);
+    const elapsed = Date.now() - startTime;
+    const timeRemaining = effectiveMaxWait - elapsed;
+
+    // Navigation / context destruction — retry once if time remains
+    if (timeRemaining > 5000 && (msg.includes('target') || msg.includes('context') || msg.includes('navigation'))) {
+      if (msg.includes('detached')) {
+        log('watcher context lost (debugger detached) — no retry');
+        return failedResult('debugger detached', Date.now() - startTime);
+      }
+      log('watcher context lost (' + msg + ') — waiting for reload and retrying once (' + timeRemaining + 'ms remaining)');
+      try {
+        await waitForTabComplete(tabId, 15000);
+        log('watcher retry with ' + timeRemaining + 'ms max wait');
+        const retryResult = await waitForMarkerResponse(tabId, plan, logger, timeRemaining);
+        return retryResult;
+      } catch (retryErr) {
+        log('watcher retry also failed: ' + (retryErr.message || String(retryErr)));
+        return failedResult('navigation failure', Date.now() - startTime);
+      }
+    }
+
+    log('watcher error: ' + msg);
+    return failedResult(msg, Date.now() - startTime);
+  }
+}
+
+function failedResult(reason, durationMs) {
+  return {
+    status: 'failed', answer: '', confidence: 'low', method: 'watcher-error',
+    reason: reason, startCount: 0, endCount: 0, multipleMarkers: false,
+    durationMs: durationMs || 0, settleMsUsed: 0,
+    transientGeneratingAtFire: false, growthSource: 'none', debugSnippet: null
   };
+}
+
+function buildInjectedWatcher(config) {
   const configJson = JSON.stringify(config);
   return `
     (function() {
       var cfg = ${configJson};
       return new Promise(function(resolve) {
         var startedAt = Date.now();
-        var exactConfirmCount = 0;
-        var anomalyConfirmCount = 0;
-        var firstMarkerSeenAt = null;
         var resolved = false;
+        var pollTimer = null;
+        var lastGrowthAt = Date.now();
+        var growthBaselineLength = 0;
+        var lastTransientCheckAt = 0;
+        var lastTransientGenerating = false;
+        var growthSource = 'innerText';
 
-        function finalize(value) {
-          if (resolved) return;
-          resolved = true;
-          resolve(value);
+        function getVisibleText() {
+          try {
+            if (document.body && document.body.innerText) {
+              growthSource = 'innerText';
+              return document.body.innerText;
+            }
+            if (document.body && document.body.textContent) {
+              growthSource = 'textContent';
+              return document.body.textContent;
+            }
+          } catch(e) {}
+          growthSource = 'none';
+          return '';
         }
 
         function countMarkers(text, marker) {
@@ -264,194 +369,279 @@ function buildMarkerWatcherExpression(plan) {
           return count;
         }
 
-        function tryExtract(text, firstStartIdx, lastStartIdx, lastEndIdx, mode) {
-          if (mode === 'exact' && lastEndIdx > lastStartIdx) {
-            return text.substring(lastStartIdx + cfg.startMarker.length, lastEndIdx).trim();
-          } else if (mode === 'anomaly' && lastEndIdx > firstStartIdx) {
-            return text.substring(firstStartIdx + cfg.startMarker.length, lastEndIdx).trim();
-          } else if (mode === 'partial' && lastStartIdx !== -1) {
-            return text.substring(lastStartIdx + cfg.startMarker.length).trim();
+        function updateGrowth(currentLength) {
+          if (currentLength > growthBaselineLength + cfg.minGrowthDelta) {
+            lastGrowthAt = Date.now();
+            growthBaselineLength = currentLength;
+          } else if (currentLength < growthBaselineLength) {
+            growthBaselineLength = currentLength;
           }
-          return '';
         }
 
-        function findMarkers(text) {
-          if (!text) return { startCount: 0, endCount: 0, firstStartIdx: -1, lastStartIdx: -1, lastEndIdx: -1 };
-          return {
-            startCount: countMarkers(text, cfg.startMarker),
-            endCount: countMarkers(text, cfg.endMarker),
-            firstStartIdx: text.indexOf(cfg.startMarker),
-            lastStartIdx: text.lastIndexOf(cfg.startMarker),
-            lastEndIdx: text.lastIndexOf(cfg.endMarker)
-          };
+        function cleanup() {
+          if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
         }
 
-        function checkShadowRoots(root) {
-          if (!root || !root.querySelectorAll) return '';
-          var result = '';
-          if (root.textContent) result += root.textContent + ' ';
+        function finalize(value) {
+          if (resolved) return;
+          resolved = true;
+          cleanup();
+          window.removeEventListener('pagehide', onPageHide);
+          resolve(value);
+        }
+
+        function onPageHide() {
+          finalize({
+            ok: false, status: 'failed', answer: '', confidence: 'low',
+            method: 'none', reason: 'page unloaded',
+            durationMs: Date.now() - startedAt,
+            startCount: 0, endCount: 0, multipleMarkers: false,
+            settleMsUsed: 0, transientGeneratingAtFire: false,
+            growthSource: growthSource, textLength: 0,
+            lastStartIndex: -1, lastEndIndex: -1,
+            debugSnippet: null
+          });
+        }
+
+        window.addEventListener('pagehide', onPageHide, { once: true });
+
+        function isTransientGeneratingVisible() {
+          var now = Date.now();
+          if (now - lastTransientCheckAt < cfg.transientSignalCacheMs) {
+            return lastTransientGenerating;
+          }
+          lastTransientCheckAt = now;
+          lastTransientGenerating = computeTransientGenerating();
+          return lastTransientGenerating;
+        }
+
+        function computeTransientGenerating() {
           try {
-            var all = root.querySelectorAll('*');
-            for (var i = 0; i < all.length; i++) {
-              if (all[i].shadowRoot && all[i].shadowRoot.textContent) {
-                result += all[i].shadowRoot.textContent + ' ';
+            var maxCheck = cfg.maxTransientElementsChecked;
+
+            // Signal A: stop button
+            var buttons = document.querySelectorAll('button, [role="button"]');
+            var stopWords = ['stop', 'halt', 'interrupt'];
+            var skipWords = ['cancel', 'copy', 'regenerate', 'share', 'like', 'dislike'];
+            for (var i = 0; i < buttons.length && i < maxCheck; i++) {
+              var btn = buttons[i];
+              var rect = btn.getBoundingClientRect();
+              if (rect.width <= 0 || rect.height <= 0) continue;
+              var style = window.getComputedStyle(btn);
+              if (style.display === 'none' || style.visibility === 'hidden') continue;
+              var label = (btn.getAttribute('aria-label') || btn.title || btn.innerText || btn.textContent || '').toLowerCase().trim();
+              if (!label) continue;
+              var isStop = false;
+              for (var si = 0; si < stopWords.length; si++) {
+                if (label.indexOf(stopWords[si]) !== -1) { isStop = true; break; }
               }
+              if (!isStop) continue;
+              var isSkip = false;
+              for (var si = 0; si < skipWords.length; si++) {
+                if (label.indexOf(skipWords[si]) !== -1) { isSkip = true; break; }
+              }
+              if (isSkip) continue;
+              return true;
+            }
+
+            // Signal B: aria-busy
+            var busyEls = document.querySelectorAll('[aria-busy="true"]');
+            for (var i = 0; i < busyEls.length && i < maxCheck; i++) {
+              var rect = busyEls[i].getBoundingClientRect();
+              if (rect.width > 0 && rect.height > 0) return true;
+            }
+
+            // Signal C: thinking indicator — very conservative
+            var thinkingSelectors = [
+              '[class*="thinking" i]', '[class*="reasoning" i]',
+              '[class*="generating" i]', '[class*="loading" i]',
+              '[data-testid*="thinking" i]',
+              '[aria-label*="thinking" i]', '[aria-label*="generating" i]'
+            ];
+            for (var si = 0; si < thinkingSelectors.length; si++) {
+              try {
+                var els = document.querySelectorAll(thinkingSelectors[si]);
+                for (var ei = 0; ei < els.length && ei < maxCheck; ei++) {
+                  var el = els[ei];
+                  var rect = el.getBoundingClientRect();
+                  if (rect.width <= 0 || rect.height <= 0) continue;
+                  if (el.getAttribute('aria-busy') === 'true') return true;
+                  var animStyle = window.getComputedStyle(el);
+                  if (animStyle.animationName && animStyle.animationName !== 'none') return true;
+                  var spinners = el.querySelectorAll('[class*="spinner" i], [class*="loading" i]');
+                  for (var ci = 0; ci < spinners.length && ci < 5; ci++) {
+                    var sr = spinners[ci].getBoundingClientRect();
+                    if (sr.width > 0 && sr.height > 0) return true;
+                  }
+                }
+              } catch(e) {}
             }
           } catch(e) {}
-          return result;
+          return false;
         }
 
-        function makeResult(ok, status, answer, confidence, method, reason, sc, ec, elapsed) {
-          return {
-            ok: ok, status: status, answer: answer, confidence: confidence,
-            method: method, reason: reason, startCount: sc, endCount: ec,
-            durationMs: elapsed || (Date.now() - startedAt),
-            url: location.href, title: document.title
-          };
+        function getDebugSnippet(visibleText, lastStartIdx) {
+          try {
+            if (lastStartIdx !== -1) {
+              return visibleText.substring(lastStartIdx, lastStartIdx + cfg.debugSnippetLength);
+            }
+            return visibleText.substring(Math.max(0, visibleText.length - cfg.debugSnippetLength));
+          } catch(e) { return null; }
+        }
+
+        function finishSuccess(visibleText, startCount, endCount, lastStartIdx, lastEndIdx, transientGenerating, settleMs) {
+          var answer = visibleText.substring(lastStartIdx + cfg.startMarker.length, lastEndIdx).trim();
+          var multipleMarkers = (startCount > 1 || endCount > 1);
+          var confidence = (growthSource === 'innerText') ? 'high' : 'medium';
+
+          if (!answer) {
+            try {
+              var tcText = document.body.textContent || '';
+              if (tcText) {
+                var tcLastStart = tcText.lastIndexOf(cfg.startMarker);
+                var tcLastEnd = tcText.lastIndexOf(cfg.endMarker);
+                if (tcLastStart !== -1 && tcLastEnd !== -1 && tcLastEnd > tcLastStart) {
+                  answer = tcText.substring(tcLastStart + cfg.startMarker.length, tcLastEnd).trim();
+                  growthSource = 'textContent';
+                  confidence = 'medium';
+                }
+              }
+            } catch(e) {}
+            if (!answer) {
+              finalize({
+                ok: false, status: 'failed', answer: '', confidence: 'low',
+                method: 'markers-settled', reason: 'empty between markers',
+                durationMs: Date.now() - startedAt,
+                startCount: startCount, endCount: endCount, multipleMarkers: multipleMarkers,
+                settleMsUsed: settleMs, transientGeneratingAtFire: transientGenerating,
+                growthSource: growthSource, textLength: visibleText.length,
+                lastStartIndex: lastStartIdx, lastEndIndex: lastEndIdx,
+                debugSnippet: null
+              });
+              return;
+            }
+          }
+
+          finalize({
+            ok: true, status: 'success', answer: answer, confidence: confidence,
+            method: 'markers-settled', reason: 'markers found with settle',
+            durationMs: Date.now() - startedAt,
+            startCount: startCount, endCount: endCount, multipleMarkers: multipleMarkers,
+            settleMsUsed: settleMs, transientGeneratingAtFire: transientGenerating,
+            growthSource: growthSource, textLength: visibleText.length,
+            lastStartIndex: lastStartIdx, lastEndIndex: lastEndIdx,
+            debugSnippet: null
+          });
+        }
+
+        function finishTimeout() {
+          var visibleText = getVisibleText();
+          var startCount = countMarkers(visibleText, cfg.startMarker);
+          var endCount = countMarkers(visibleText, cfg.endMarker);
+          var lastStartIdx = visibleText.lastIndexOf(cfg.startMarker);
+          var lastEndIdx = visibleText.lastIndexOf(cfg.endMarker);
+          var debugSnippet = getDebugSnippet(visibleText, lastStartIdx);
+
+          if (startCount > 0 && endCount === 0) {
+            var partialAnswer = lastStartIdx !== -1 ? visibleText.substring(lastStartIdx + cfg.startMarker.length).trim() : '';
+            finalize({
+              ok: true, status: 'partial', answer: partialAnswer, confidence: 'low',
+              method: 'partial-after-start', reason: 'end marker missing',
+              durationMs: Date.now() - startedAt,
+              startCount: startCount, endCount: endCount, multipleMarkers: (startCount > 1 || endCount > 1),
+              settleMsUsed: 0, transientGeneratingAtFire: false,
+              growthSource: growthSource, textLength: visibleText.length,
+              lastStartIndex: lastStartIdx, lastEndIndex: lastEndIdx,
+              debugSnippet: debugSnippet
+            });
+          } else if (startCount === 0 && endCount > 0) {
+            finalize({
+              ok: false, status: 'failed', answer: '', confidence: 'low',
+              method: 'none', reason: 'start marker missing',
+              durationMs: Date.now() - startedAt,
+              startCount: startCount, endCount: endCount, multipleMarkers: false,
+              settleMsUsed: 0, transientGeneratingAtFire: false,
+              growthSource: growthSource, textLength: visibleText.length,
+              lastStartIndex: -1, lastEndIndex: lastEndIdx,
+              debugSnippet: debugSnippet
+            });
+          } else {
+            finalize({
+              ok: false, status: 'failed', answer: '', confidence: 'low',
+              method: 'none', reason: 'markers not found',
+              durationMs: Date.now() - startedAt,
+              startCount: startCount, endCount: endCount, multipleMarkers: false,
+              settleMsUsed: 0, transientGeneratingAtFire: false,
+              growthSource: growthSource, textLength: visibleText.length,
+              lastStartIndex: lastStartIdx, lastEndIndex: lastEndIdx,
+              debugSnippet: debugSnippet
+            });
+          }
         }
 
         function poll() {
           try {
-            if (!document.body) { setTimeout(poll, cfg.pollMs); return; }
-
-            var text = (document.body.textContent || '');
-            var m = findMarkers(text);
-
-            if (m.startCount === 0 && m.endCount === 0) {
-              var altText = (document.body.innerText || '');
-              if (altText !== text) {
-                var altM = findMarkers(altText);
-                if (altM.startCount > 0 || altM.endCount > 0) { text = altText; m = altM; }
-              }
-              if (m.startCount === 0 && m.endCount === 0) {
-                var shText = checkShadowRoots(document.body);
-                if (shText) {
-                  var shM = findMarkers(shText);
-                  if (shM.startCount > 0 || shM.endCount > 0) { m = shM; }
-                }
-              }
-            }
+            if (resolved) return;
 
             var elapsed = Date.now() - startedAt;
-
-            if (m.startCount === 1 && m.endCount === 1 && m.lastEndIdx > m.lastStartIdx) {
-              exactConfirmCount++;
-              anomalyConfirmCount = 0;
-              if (exactConfirmCount >= cfg.confirmPolls) {
-                var answer = tryExtract(text, m.firstStartIdx, m.lastStartIdx, m.lastEndIdx, 'exact');
-                finalize(makeResult(true, 'success', answer, 'high', 'markers-exact', 'markers found', m.startCount, m.endCount, elapsed));
-                return;
-              }
-            } else if (m.startCount >= 1 && m.endCount >= 1 && m.lastEndIdx > m.lastStartIdx) {
-              if (firstMarkerSeenAt === null) firstMarkerSeenAt = Date.now();
-              if (Date.now() - firstMarkerSeenAt >= cfg.anomalyGraceMs) {
-                anomalyConfirmCount++;
-                if (anomalyConfirmCount >= cfg.confirmPolls) {
-                  var answer = tryExtract(text, m.firstStartIdx, m.lastStartIdx, m.lastEndIdx, 'anomaly');
-                  finalize(makeResult(true, 'success', answer, 'low', 'markers-anomaly', 'marker count anomaly', m.startCount, m.endCount, elapsed));
-                  return;
-                }
-              }
-            } else {
-              exactConfirmCount = 0;
-              anomalyConfirmCount = 0;
-            }
-
-            if (m.startCount > 0 || m.endCount > 0) {
-              if (firstMarkerSeenAt === null) firstMarkerSeenAt = Date.now();
-            }
-
             if (elapsed >= cfg.maxWaitMs) {
-              if (m.startCount > 0 && m.endCount === 0) {
-                var partialAnswer = tryExtract(text, m.firstStartIdx, m.lastStartIdx, m.lastEndIdx, 'partial');
-                finalize(makeResult(true, 'partial', partialAnswer, 'low', 'partial-start-only', 'end marker missing', m.startCount, m.endCount, elapsed));
-              } else {
-                finalize(makeResult(false, 'failed', '', 'low', 'none', 'markers not found', m.startCount, m.endCount, elapsed));
-              }
+              finishTimeout();
               return;
             }
+
+            var visibleText = getVisibleText();
+            if (!visibleText) {
+              updateGrowth(0);
+              pollTimer = setTimeout(poll, cfg.pollMs);
+              return;
+            }
+
+            var startCount = countMarkers(visibleText, cfg.startMarker);
+            var endCount = countMarkers(visibleText, cfg.endMarker);
+            var lastStartIdx = visibleText.lastIndexOf(cfg.startMarker);
+            var lastEndIdx = visibleText.lastIndexOf(cfg.endMarker);
+
+            updateGrowth(visibleText.length);
+            var transientGenerating = isTransientGeneratingVisible();
+
+            var markersReady = (startCount >= 1 && endCount >= 1 && lastEndIdx > lastStartIdx);
+
+            if (markersReady) {
+              var settleMs = transientGenerating ? cfg.settleActiveMs : cfg.settleNormalMs;
+              if (Date.now() - lastGrowthAt >= settleMs) {
+                finishSuccess(visibleText, startCount, endCount, lastStartIdx, lastEndIdx, transientGenerating, settleMs);
+                return;
+              }
+            }
           } catch (err) {
-            finalize(makeResult(false, 'failed', '', 'low', 'watcher-error', err.message || String(err), 0, 0, Date.now() - startedAt));
+            finalize({
+              ok: false, status: 'failed', answer: '', confidence: 'low',
+              method: 'watcher-error', reason: err.message || String(err),
+              durationMs: Date.now() - startedAt,
+              startCount: 0, endCount: 0, multipleMarkers: false,
+              settleMsUsed: 0, transientGeneratingAtFire: false,
+              growthSource: growthSource, textLength: 0,
+              lastStartIndex: -1, lastEndIndex: -1,
+              debugSnippet: null
+            });
             return;
           }
-          setTimeout(poll, cfg.pollMs);
+
+          pollTimer = setTimeout(poll, cfg.pollMs);
         }
+
+        // Initialize baseline
+        try {
+          if (document.body) {
+            var initText = (document.body.innerText || document.body.textContent || '');
+            growthBaselineLength = initText.length;
+          }
+        } catch(e) {}
 
         poll();
       });
     })()
   `;
-}
-
-async function waitForMarkerResponse(tabId, plan, logger) {
-  const log = (msg) => logger.log(tabId, '[MarkerPart2] ' + msg);
-  const startTime = Date.now();
-
-  try {
-    const expression = buildMarkerWatcherExpression(plan);
-    const result = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
-      expression: expression,
-      returnByValue: true,
-      awaitPromise: true,
-      timeout: BACKGROUND_SAFETY_TIMEOUT_MS
-    });
-
-    if (result && result.result && result.result.value) {
-      const w = result.result.value;
-      log('watcher result: ' + w.status + ' (' + w.method + ') duration=' + w.durationMs + 'ms');
-      return {
-        status: w.status,
-        answer: w.answer || '',
-        confidence: w.confidence || 'low',
-        method: w.method || 'unknown',
-        reason: w.reason || '',
-        startCount: w.startCount || 0,
-        endCount: w.endCount || 0,
-        durationMs: w.durationMs || (Date.now() - startTime)
-      };
-    }
-
-    // No return value — treat as failure
-    log('watcher returned no value');
-    return {
-      status: 'failed', answer: '', confidence: 'low', method: 'watcher-error',
-      reason: 'no return value', startCount: 0, endCount: 0, durationMs: Date.now() - startTime
-    };
-  } catch (e) {
-    const msg = e.message || String(e);
-
-    // Navigation / context destruction — retry once
-    if (msg.includes('target') || msg.includes('context') || msg.includes('navigation') || msg.includes('detached')) {
-      log('watcher context lost (' + msg + ') — waiting for reload and retrying once');
-      try {
-        // Supplementary note 5: check if debugger was detached
-        if (msg.includes('detached')) {
-          return {
-            status: 'failed', answer: '', confidence: 'low', method: 'watcher-error',
-            reason: 'debugger detached', startCount: 0, endCount: 0, durationMs: Date.now() - startTime
-          };
-        }
-        // Wait for tab to finish loading (max 15s)
-        await waitForTabComplete(tabId, 15000);
-        // Retry watcher once
-        const retryResult = await waitForMarkerResponse(tabId, plan, logger);
-        log('watcher retry result: ' + retryResult.status);
-        return retryResult;
-      } catch (retryErr) {
-        log('watcher retry also failed: ' + (retryErr.message || String(retryErr)));
-        return {
-          status: 'failed', answer: '', confidence: 'low', method: 'watcher-error',
-          reason: 'navigation failure', startCount: 0, endCount: 0, durationMs: Date.now() - startTime
-        };
-      }
-    }
-
-    log('watcher error: ' + msg);
-    return {
-      status: 'failed', answer: '', confidence: 'low', method: 'watcher-error',
-      reason: msg, startCount: 0, endCount: 0, durationMs: Date.now() - startTime
-    };
-  }
 }
 // ---- Tab load / focus detection --------------------------------------------
 function waitForTabComplete(tabId, timeoutMs = 30000) {

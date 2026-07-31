@@ -7,6 +7,7 @@ const statusEl = document.getElementById('status');
 const resultsSection = document.getElementById('results-section');
 const resultsList = document.getElementById('results-list');
 const downloadAnswersBtn = document.getElementById('downloadAnswersBtn');
+const downloadAnswersZipBtn = document.getElementById('downloadAnswersZipBtn');
 const downloadJsonBtn = document.getElementById('downloadJsonBtn');
 
 const SESSION_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -68,6 +69,7 @@ submitBtn.addEventListener('click', async () => {
   resultsSection.style.display = 'none';
   resultsList.innerHTML = '';
   downloadAnswersBtn.style.display = 'none';
+  downloadAnswersZipBtn.style.display = 'none';
   downloadJsonBtn.style.display = 'none';
 
   chrome.storage.local.set({ lastUrls: urlsInput.value, skipWait, experimentalBackground: experimentalBgInput.checked });
@@ -169,6 +171,7 @@ function updateUI(submission) {
     submitBtn.disabled = false;
     renderSubmission(submission);
     downloadAnswersBtn.style.display = 'block';
+    downloadAnswersZipBtn.style.display = 'block';
     downloadJsonBtn.style.display = 'block';
   }
 }
@@ -215,6 +218,11 @@ function buildTxtContent(submission) {
     lines.push('Method: ' + (tab.method || 'N/A'));
     lines.push('Reason: ' + (tab.responseReason || tab.sendReason || 'N/A'));
     lines.push('Duration: ' + (tab.responseDurationMs || 'N/A') + ' ms');
+    lines.push('Start Count: ' + (tab.startCount !== undefined ? tab.startCount : 'N/A'));
+    lines.push('End Count: ' + (tab.endCount !== undefined ? tab.endCount : 'N/A'));
+    lines.push('Multiple Markers: ' + (tab.multipleMarkers !== undefined ? tab.multipleMarkers : 'N/A'));
+    lines.push('Settle Used: ' + (tab.settleMsUsed || 'N/A') + ' ms');
+    lines.push('Growth Source: ' + (tab.growthSource || 'N/A'));
     lines.push('');
     lines.push('ANSWER:');
     if (tab.answer && tab.answer.length > 0) {
@@ -261,5 +269,157 @@ downloadJsonBtn.addEventListener('click', () => {
     a.download = 'autoprompt-answers-' + timestamp() + '.json';
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+});
+
+// ---- Download answers as separate files (zip) --------------------------------
+function stripMarkers(text, submission) {
+  let out = (text || '').trim();
+  if (submission && submission.startMarker) {
+    out = out.split(submission.startMarker).join('');
+  }
+  if (submission && submission.endMarker) {
+    const idx = out.indexOf(submission.endMarker);
+    if (idx !== -1) out = out.substring(0, idx);
+  }
+  return out.trim();
+}
+
+function sanitizeFilename(name) {
+  const cleaned = String(name || '')
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_')
+    .replace(/[. ]+$/g, '')
+    .trim();
+  return cleaned || 'site';
+}
+
+function crc32(data) {
+  if (!crc32.table) {
+    const table = new Int32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+      table[n] = c;
+    }
+    crc32.table = table;
+  }
+  let crc = -1;
+  for (let i = 0; i < data.length; i++) crc = (crc >>> 8) ^ crc32.table[(crc ^ data[i]) & 0xff];
+  return (crc ^ -1) >>> 0;
+}
+
+function buildZip(files) {
+  const encoder = new TextEncoder();
+  const chunks = [];
+  const central = [];
+  let offset = 0;
+  const now = new Date();
+  const dosTime = ((now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1)) & 0xffff;
+  const dosDate = (((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate()) & 0xffff;
+
+  for (const f of files) {
+    const nameBytes = encoder.encode(f.name);
+    const crc = crc32(f.data);
+    const size = f.data.length;
+    const lfh = new DataView(new ArrayBuffer(30));
+    lfh.setUint32(0, 0x04034b50, true);
+    lfh.setUint16(4, 20, true);
+    lfh.setUint16(6, 0x0800, true);
+    lfh.setUint16(8, 0, true);
+    lfh.setUint16(10, dosTime, true);
+    lfh.setUint16(12, dosDate, true);
+    lfh.setUint32(14, crc, true);
+    lfh.setUint32(18, size, true);
+    lfh.setUint32(22, size, true);
+    lfh.setUint16(26, nameBytes.length, true);
+    lfh.setUint16(28, 0, true);
+    chunks.push(new Uint8Array(lfh.buffer), nameBytes, f.data);
+    central.push({ nameBytes, crc, size, offset, dosTime, dosDate });
+    offset += 30 + nameBytes.length + size;
+  }
+
+  const centralStart = offset;
+  for (const c of central) {
+    const cdr = new DataView(new ArrayBuffer(46));
+    cdr.setUint32(0, 0x02014b50, true);
+    cdr.setUint16(4, 20, true);
+    cdr.setUint16(6, 20, true);
+    cdr.setUint16(8, 0x0800, true);
+    cdr.setUint16(10, 0, true);
+    cdr.setUint16(12, c.dosTime, true);
+    cdr.setUint16(14, c.dosDate, true);
+    cdr.setUint32(16, c.crc, true);
+    cdr.setUint32(20, c.size, true);
+    cdr.setUint32(24, c.size, true);
+    cdr.setUint16(28, c.nameBytes.length, true);
+    cdr.setUint16(30, 0, true);
+    cdr.setUint16(32, 0, true);
+    cdr.setUint16(34, 0, true);
+    cdr.setUint16(36, 0, true);
+    cdr.setUint32(38, 0, true);
+    cdr.setUint32(42, c.offset, true);
+    chunks.push(new Uint8Array(cdr.buffer), c.nameBytes);
+    offset += 46 + c.nameBytes.length;
+  }
+
+  const centralSize = offset - centralStart;
+  const eocd = new DataView(new ArrayBuffer(22));
+  eocd.setUint32(0, 0x06054b50, true);
+  eocd.setUint16(4, 0, true);
+  eocd.setUint16(6, 0, true);
+  eocd.setUint16(8, central.length, true);
+  eocd.setUint16(10, central.length, true);
+  eocd.setUint32(12, centralSize, true);
+  eocd.setUint32(16, centralStart, true);
+  eocd.setUint16(20, 0, true);
+
+  const total = chunks.reduce((s, c) => s + c.length, 0) + 22;
+  const out = new Uint8Array(total);
+  let p = 0;
+  for (const c of chunks) { out.set(c, p); p += c.length; }
+  out.set(new Uint8Array(eocd.buffer), p);
+  return out;
+}
+
+downloadAnswersZipBtn.addEventListener('click', () => {
+  chrome.storage.local.get(STORAGE_KEY, (res) => {
+    const sub = res[STORAGE_KEY];
+    if (!sub) return;
+    const files = [];
+    const used = new Map();
+    const tabs = sub.tabs || [];
+    tabs.forEach((tab) => {
+      if (!tab || !tab.url) return;
+      let base = 'site';
+      try { base = sanitizeFilename(new URL(tab.url).hostname); }
+      catch (_e) { base = sanitizeFilename(tab.url); }
+      const count = used.get(base) || 0;
+      used.set(base, count + 1);
+      const name = count === 0 ? base : base + '-' + (count + 1);
+
+      const answer = stripMarkers(tab.answer, sub);
+      let content;
+      if (answer.length > 0) {
+        content = answer;
+      } else if (tab.responseStatus === 'failed') {
+        content = '[No answer: ' + (tab.responseReason || tab.sendReason || 'unknown') + ']';
+      } else if (tab.responseStatus === 'partial') {
+        content = '[PARTIAL ANSWER]';
+      } else {
+        content = '[No answer]';
+      }
+      files.push({ name: 'answers/' + name + '.txt', data: new TextEncoder().encode(content) });
+    });
+    files.push({ name: 'answers/prompt.txt', data: new TextEncoder().encode(sub.originalPrompt || '') });
+
+    const zip = buildZip(files);
+    const blob = new Blob([zip], { type: 'application/zip' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'autoprompt-answers-' + timestamp() + '.zip';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    statusEl.textContent = 'Downloaded ' + tabs.length + ' answer file(s) + prompt (zip).';
   });
 });
