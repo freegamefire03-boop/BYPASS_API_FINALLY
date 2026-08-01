@@ -1,5 +1,7 @@
-// Per-site configurator runner UI — merged from "site-configurator final".
+// Per-site configurator runner UI — merged from "site-configurator final" v1.3.0.
 // Namespaced in an IIFE so it never collides with popup.js (autoprompt UI).
+// Each site with an `options` schema renders per-site controls (selects/checkboxes)
+// that persist to chrome.storage.local and drive describe()/buildSteps() on run.
 (() => {
   const SITE_CONFIGS = window.SITE_CONFIGS || {};
   const listEl = document.getElementById("siteList");
@@ -8,35 +10,132 @@
   if (!listEl || !statusEl || !clearBtn) return;
 
   let busyKey = null;
+  const rows = {};
 
   function renderStatus(text) {
     statusEl.textContent = text;
   }
 
-  for (const key of Object.keys(SITE_CONFIGS)) {
-    const cfg = SITE_CONFIGS[key];
+  function storageKey(siteKey, optKey) {
+    return siteKey + "_" + optKey;
+  }
+
+  function describe(cfg, sel) {
+    return cfg.describe ? cfg.describe(sel) : cfg.description;
+  }
+
+  function buildSteps(cfg, sel) {
+    return cfg.buildSteps ? cfg.buildSteps(sel) : cfg.steps;
+  }
+
+  function makeRow(cfg) {
     const row = document.createElement("div");
     row.className = "site-row";
+
     const info = document.createElement("div");
     const name = document.createElement("div");
     name.className = "site-name";
     name.textContent = cfg.name;
     const desc = document.createElement("div");
     desc.className = "site-desc";
-    desc.textContent = cfg.description;
     info.append(name, desc);
+
+    const opts = document.createElement("div");
+    opts.className = "site-options";
+    const ctl = {};
+    const save = () => {
+      const sel = refresh();
+      const changes = {};
+      for (const o of cfg.options || []) {
+        changes[storageKey(cfg.key, o.key)] = sel[o.key];
+      }
+      chrome.storage.local.set(changes).catch(() => {});
+    };
+    for (const o of cfg.options || []) {
+      const w = document.createElement("div");
+      w.className = "option-row";
+      const l = document.createElement("label");
+      l.textContent = o.label;
+      let c;
+      if (o.type === "toggle") {
+        c = document.createElement("input");
+        c.type = "checkbox";
+        c.onchange = save;
+      } else {
+        c = document.createElement("select");
+        for (const v of o.values) {
+          const op = document.createElement("option");
+          op.value = v;
+          op.textContent = v;
+          c.appendChild(op);
+        }
+        c.onchange = save;
+      }
+      ctl[o.key] = c;
+      w.append(l, c);
+      opts.appendChild(w);
+    }
+    info.append(opts);
+
     const btn = document.createElement("button");
     btn.className = "run-btn";
     btn.textContent = "Run";
-    btn.dataset.site = key;
-    btn.onclick = () => runConfig(key);
+    btn.dataset.site = cfg.key;
+    btn.onclick = () => runConfig(cfg.key);
     row.append(info, btn);
-    listEl.appendChild(row);
+
+    function refresh() {
+      const sel = {};
+      for (const o of cfg.options || []) {
+        sel[o.key] = ctl[o.key].type === "checkbox" ? !!ctl[o.key].checked : ctl[o.key].value;
+      }
+      desc.textContent = describe(cfg, sel);
+      return sel;
+    }
+    refresh();
+
+    return { row, ctl, refresh, cfg };
   }
+
+  for (const key of Object.keys(SITE_CONFIGS)) {
+    const built = makeRow(SITE_CONFIGS[key]);
+    rows[key] = built;
+    listEl.appendChild(built.row);
+  }
+
+  const defaults = {};
+  for (const key of Object.keys(SITE_CONFIGS)) {
+    for (const o of SITE_CONFIGS[key].options || []) {
+      defaults[storageKey(key, o.key)] = o.default;
+    }
+  }
+  chrome.storage.local
+    .get(defaults)
+    .then((stored) => {
+      for (const key of Object.keys(SITE_CONFIGS)) {
+        const built = rows[key];
+        for (const o of built.cfg.options || []) {
+          const v = stored[storageKey(key, o.key)];
+          if (o.type === "toggle") built.ctl[o.key].checked = !!v;
+          else built.ctl[o.key].value = v;
+        }
+        built.refresh();
+      }
+    })
+    .catch(() => {});
 
   async function runConfig(key) {
     const cfg = SITE_CONFIGS[key];
     if (!cfg) return;
+    const sel = rows[key].refresh();
+    const config = {
+      key: cfg.key,
+      name: cfg.name,
+      url: cfg.url,
+      inputText: cfg.inputText,
+      description: describe(cfg, sel),
+      steps: buildSteps(cfg, sel)
+    };
     const btn = document.querySelector(`.run-btn[data-site="${key}"]`);
     if (busyKey) {
       renderStatus(SITE_CONFIGS[busyKey].name + " is already running \u2014 check that tab.");
@@ -51,7 +150,7 @@
         chrome.runtime.sendMessage({
           type: "run-config",
           siteKey: key,
-          config: cfg
+          config
         }),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error("no response from background in 100s")), 100000)

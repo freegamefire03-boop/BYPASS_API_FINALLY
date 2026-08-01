@@ -247,7 +247,10 @@
   }
 
   async function ensureToggle(step) {
-    if (probeActive(step)) return { ok: true, detail: "already on" };
+    const wantOn = step.target !== "off";
+    const active = probeActive(step);
+    if (wantOn && active) return { ok: true, detail: "already on" };
+    if (!wantOn && !active) return { ok: true, detail: "already off" };
     const deadline = Date.now() + (step.timeout || 12000);
     while (Date.now() < deadline) {
       await openMenuIfNeeded(step);
@@ -260,10 +263,56 @@
         continue;
       }
       await sleep(step.pauseAfter ?? 900);
-      if (probeActive(step)) return { ok: true, detail: "switched on" };
+      const a = probeActive(step);
+      if (wantOn && a) return { ok: true, detail: "switched on" };
+      if (!wantOn && !a) return { ok: true, detail: "switched off" };
       await sleep(300);
     }
-    return { ok: false, detail: "could not enable" };
+    return { ok: false, detail: wantOn ? "could not enable" : "could not disable" };
+  }
+
+  function readCssText(css) {
+    try {
+      const el = document.querySelector(css);
+      return el
+        ? norm(el.innerText || el.textContent || el.getAttribute("aria-label") || "")
+        : "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function findOptionEl(step) {
+    const css = step.optionCss || ".ant-select-item-option";
+    const els = document.querySelectorAll(css);
+    for (const el of els) {
+      if (inOverlay(el)) continue;
+      const t = norm(el.textContent);
+      if (t === step.find || t.includes(step.find)) return el;
+    }
+    return null;
+  }
+
+  async function dropdownStep(step) {
+    if (step.currentCss && readCssText(step.currentCss) === step.find) {
+      return { ok: true, detail: "already set" };
+    }
+    const openEl = step.openCss ? document.querySelector(step.openCss) : null;
+    if (openEl) doClick(openEl);
+    const deadline = Date.now() + (step.timeout || 8000);
+    let el = null;
+    while (Date.now() < deadline) {
+      el = findOptionEl(step);
+      if (el) break;
+      await sleep(300);
+    }
+    if (!el) return { ok: false, detail: "option not found" };
+    doClick(el);
+    await sleep(600);
+    if (step.currentCss && readCssText(step.currentCss) === step.find) {
+      return { ok: true, detail: "set to " + step.find };
+    }
+    return { ok: true, detail: "clicked " + step.find };
   }
 
   function buildOverlay() {
@@ -368,6 +417,10 @@
       let detail = "";
       if (step.type === "toggle") {
         const res = await ensureToggle(step);
+        ok = res.ok;
+        detail = res.detail;
+      } else if (step.type === "dropdown") {
+        const res = await dropdownStep(step);
         ok = res.ok;
         detail = res.detail;
       } else if (step.type === "hover") {

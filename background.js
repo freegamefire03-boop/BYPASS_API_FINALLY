@@ -145,11 +145,43 @@ function matchSiteKey(url) {
   return null;
 }
 
+function siteStorageKey(siteKey, optKey) {
+  return siteKey + "_" + optKey;
+}
+
+async function getSiteSelections(key) {
+  const cfg = SITE_CONFIGS[key];
+  const defaults = {};
+  for (const o of (cfg && cfg.options) || []) defaults[siteStorageKey(key, o.key)] = o.default;
+  let stored = {};
+  try {
+    stored = await chrome.storage.local.get(defaults);
+  } catch (e) {
+    stored = defaults;
+  }
+  const sel = {};
+  for (const o of (cfg && cfg.options) || []) sel[o.key] = stored[siteStorageKey(key, o.key)];
+  return sel;
+}
+
+function buildSiteConfig(cfg, sel) {
+  return {
+    key: cfg.key,
+    name: cfg.name,
+    url: cfg.url,
+    inputText: cfg.inputText,
+    description: cfg.describe ? cfg.describe(sel) : cfg.description,
+    steps: cfg.buildSteps ? cfg.buildSteps(sel) : cfg.steps
+  };
+}
+
 async function applySiteSettings(tabId, url, logger) {
   const key = matchSiteKey(url);
   if (!key) return { skipped: true };
-  const config = SITE_CONFIGS[key];
-  if (!config) return { skipped: true };
+  const cfg = SITE_CONFIGS[key];
+  if (!cfg) return { skipped: true };
+  const sel = await getSiteSelections(key);
+  const config = buildSiteConfig(cfg, sel);
   logger.log(tabId, "Config: applying " + key + " model/thinking steps before send");
   const res = await injectAndRun(tabId, config);
   return { skipped: false, siteKey: key, result: res };
