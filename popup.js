@@ -1,7 +1,6 @@
 const urlsInput = document.getElementById('urls');
 const promptInput = document.getElementById('prompt');
 const skipWaitInput = document.getElementById('skipWait');
-const experimentalBgInput = document.getElementById('experimentalBackground');
 const submitBtn = document.getElementById('submit');
 const statusEl = document.getElementById('status');
 const resultsSection = document.getElementById('results-section');
@@ -28,19 +27,14 @@ function submissionId() {
   try { return crypto.randomUUID(); } catch (_e) { return Date.now() + '-' + Math.random().toString(36).slice(2, 10); }
 }
 
-chrome.storage.local.get(['lastUrls', 'skipWait', 'experimentalBackground', STORAGE_KEY], (res) => {
+chrome.storage.local.get(['lastUrls', 'skipWait', STORAGE_KEY], (res) => {
   if (res.lastUrls) urlsInput.value = res.lastUrls;
   if (res.skipWait) skipWaitInput.checked = true;
-  if (res.experimentalBackground) experimentalBgInput.checked = true;
   if (res[STORAGE_KEY]) updateUI(res[STORAGE_KEY]);
 });
 
 skipWaitInput.addEventListener('change', () => {
   chrome.storage.local.set({ skipWait: skipWaitInput.checked });
-});
-
-experimentalBgInput.addEventListener('change', () => {
-  chrome.storage.local.set({ experimentalBackground: experimentalBgInput.checked });
 });
 
 function parseUrls(raw) {
@@ -72,7 +66,7 @@ submitBtn.addEventListener('click', async () => {
   downloadAnswersZipBtn.style.display = 'none';
   downloadJsonBtn.style.display = 'none';
 
-  chrome.storage.local.set({ lastUrls: urlsInput.value, skipWait, experimentalBackground: experimentalBgInput.checked });
+  chrome.storage.local.set({ lastUrls: urlsInput.value, skipWait });
 
   const sessionCode = generateSessionCode();
   const sid = submissionId();
@@ -87,8 +81,7 @@ submitBtn.addEventListener('click', async () => {
       urls,
       prompt,
       sessionCode,
-      skipWait,
-      experimentalBackground: experimentalBgInput.checked
+      skipWait
     });
     statusEl.textContent = 'Tabs opened. Sending prompt...';
   } catch (e) {

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "BYPASS API_CLAUDE_BUREAU",
-  "version": "1.0.0",
-  "description": "Opens an AI chat URL and auto-sends your prompt by simulating a real Ctrl+V paste and Enter keystroke.",
+  "version": "2.0.0",
+  "description": "Opens AI chat URLs, auto-sends prompts via trusted CDP keystrokes, reads answers, and configures per-site model/thinking (DeepSeek, Qwen, Gemini, Kimi, Z.ai).",
   "permissions": ["tabs", "scripting", "debugger", "storage", "alarms", "unlimitedStorage"],
   "host_permissions": ["<all_urls>"],
   "action": {

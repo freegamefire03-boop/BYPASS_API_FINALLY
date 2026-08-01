@@ -110,6 +110,52 @@
   }
   input:checked + .slider { background-color: #4f7cff; }
   input:checked + .slider:before { transform: translateX(16px); }
+  #sites-section {
+    margin-top: 14px;
+    border-top: 1px solid #333;
+    padding-top: 10px;
+  }
+  #sites-section h4 { margin: 0 0 2px 0; font-size: 12px; color: #aaa; font-weight: 600; }
+  #sites-section .sub { margin-bottom: 8px; }
+  .site-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 7px 9px;
+    margin-bottom: 6px;
+  }
+  .site-name { font-weight: 600; color: #ddd; font-size: 12px; }
+  .site-desc { color: #777; font-size: 10px; margin-top: 2px; }
+  .run-btn {
+    background: #4f7cff;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    font-family: inherit;
+  }
+  .run-btn:hover { background: #3a6ae0; }
+  .run-btn:disabled { background: #555; color: #999; cursor: default; }
+  #cfgStatus { margin: 8px 0 6px; font-size: 11px; color: #9ad; min-height: 13px; }
+  #cfgClearBtn {
+    width: 100%;
+    background: none;
+    border: 1px solid #444;
+    color: #888;
+    border-radius: 6px;
+    padding: 6px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  #cfgClearBtn:hover { border-color: #777; color: #ddd; }
 </style>
 </head>
 <body>
@@ -133,17 +179,6 @@
     </label>
   </div>
 
-  <div class="toggle-row">
-    <div>
-      <div class="toggle-label">Stealth mode (background)</div>
-      <div class="toggle-hint">All tabs run in parallel. Works while Chrome is minimized. No focus stealing.</div>
-    </div>
-    <label class="switch">
-      <input type="checkbox" id="experimentalBackground">
-      <span class="slider"></span>
-    </label>
-  </div>
-
   <button id="submit">Open &amp; Send</button>
   <div id="status"></div>
 
@@ -157,6 +192,16 @@
     </div>
   </div>
 
+  <div id="sites-section">
+    <h4>Site Configurator</h4>
+    <div class="sub">Runs each site's model/thinking setup (opens or reuses the tab).</div>
+    <div id="siteList"></div>
+    <div id="cfgStatus"></div>
+    <button id="cfgClearBtn">Clear status</button>
+  </div>
+
+  <script src="sites.js"></script>
+  <script src="sites-popup.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

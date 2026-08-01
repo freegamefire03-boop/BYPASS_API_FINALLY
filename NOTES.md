@@ -45,6 +45,10 @@ This replaces the current Stage 3 (Enter retry) which only re-presses Enter with
 
 # Known Limitations
 
+## Qwen not responding (investigate later)
+
+Qwen sometimes returns no response — probably due to late loading of the chat UI/input or slow init on the site. Not blocking; defer investigation to a later session.
+
 ## 120s Marker Watcher Timeout
 
 The marker-based watcher (`MARKER_MAX_WAIT_MS = 120000`) hard-fails if the AI hasn't output both `APSTART-{code}` and `APEND-{code}` markers within 2 minutes.
